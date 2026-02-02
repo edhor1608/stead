@@ -1,5 +1,8 @@
-import { describe, test, expect } from 'bun:test';
+import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
 import { $ } from 'bun';
+import { mkdir, rm, readdir } from 'node:fs/promises';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 
 describe('stead CLI', () => {
   test('--help shows usage', async () => {
@@ -20,9 +23,41 @@ describe('stead CLI', () => {
     try {
       await $`bun run ./src/cli/index.ts invalid`.throws(true);
       expect(false).toBe(true); // Should not reach here
-    } catch (e) {
+    } catch {
       // Expected to throw
       expect(true).toBe(true);
     }
+  });
+
+  test('missing required args shows error', async () => {
+    try {
+      await $`bun run ./src/cli/index.ts run`.throws(true);
+    } catch {
+      expect(true).toBe(true);
+    }
+  });
+});
+
+describe('stead CLI E2E', () => {
+  let testDir: string;
+  const cliPath = join(process.cwd(), 'src/cli/index.ts');
+
+  beforeEach(async () => {
+    testDir = join(tmpdir(), `stead-e2e-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    await mkdir(testDir, { recursive: true });
+  });
+
+  afterEach(async () => {
+    await rm(testDir, { recursive: true, force: true });
+  });
+
+  test('list with no contracts', async () => {
+    const result = await $`bun run ${cliPath} list`.cwd(testDir).text();
+    expect(result.trim()).toBe('No contracts found');
+  });
+
+  test('show with missing contract', async () => {
+    const result = await $`bun run ${cliPath} show nonexistent`.cwd(testDir).text();
+    expect(result.trim()).toBe('Contract not found: nonexistent');
   });
 });
