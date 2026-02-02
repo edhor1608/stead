@@ -7,13 +7,13 @@
 
 ## Executive Summary
 
-stead is an operating environment for agent-driven development. Agents are the primary operators; humans are supervisors. This document synthesizes findings from 9 parallel research threads.
+stead is an operating environment for agent-driven development. Agents are the primary operators; humans are supervisors. This document synthesizes findings from 9 parallel research threads into six core pillars.
 
 **Core insight confirmed:** The problem isn't "AI-assisted development" — it's that our entire toolchain assumes humans are the workers. Flipping this paradigm requires new infrastructure, but not new inventions. The pieces exist; nobody has assembled them for agent-first workflows.
 
 ---
 
-## The Five Pillars
+## The Six Pillars
 
 ### 1. Contract Engine (Foundation)
 
@@ -148,6 +148,50 @@ stead is an operating environment for agent-driven development. Agents are the p
 
 ---
 
+### 6. Context Generator
+
+**What:** Project memory that generates relevant context, not a store you query.
+
+**Key Design Decisions:**
+- Don't build a memory store — build a context generator
+- The project already HAS memory (code, docs, git, contracts, decisions)
+- The problem isn't storage, it's synthesis
+- Generate task-specific briefings from everything that exists
+- Decisions become constraints, not facts to retrieve
+
+**The Reframe:**
+- Memory isn't a database you query
+- Memory is a process that generates relevant starting context
+- Decisions aren't stored facts — they're constraints that shape behavior
+- History isn't a log — it's patterns that influence choices
+
+**How It Works:**
+```
+Project State (already exists):
+├── Code
+├── Docs
+├── Git history
+├── Contracts
+├── Decisions log
+└── Past session summaries
+
+Context Generator (the "mind"):
+├── Input: current task + who's asking
+├── Process: synthesize what's relevant
+└── Output: briefing (injected as starting context)
+```
+
+**Why This Works:**
+- No separate memory system to maintain
+- No schema to design and keep updated
+- Task-specific = no token waste on irrelevant context
+- Synthesis is what LLMs are good at
+- Scales naturally — more project state = richer briefings
+
+**Gap Filled:** Everyone treats project memory as retrieval. Nobody synthesizes context from the project's existing state.
+
+---
+
 ## Technology Stack Recommendations
 
 | Layer | Technology | Rationale |
@@ -213,6 +257,7 @@ Phase 5: Transformation Layer (Weeks 19-24)
 | Unified workspace model | Agents, terminals, browsers separate | Single project context across all |
 | Project-scoped identity | Manual profile switching | Session proxy with auto-switching |
 | Semantic version control | Line-based diffs lose intent | Transformation layer |
+| Persistent project memory | RAG, conversation history, knowledge graphs | Context generator that synthesizes from project state |
 
 ---
 

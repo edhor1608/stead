@@ -49,6 +49,7 @@ Response to Theo's problem — what if we built from scratch for this reality?
 - **Non-human-readable structure underneath** — optimize for agent consumption
 - **Human UI for tracking state, reviews, previews** — separate presentation layer
 - **Own code organization (git for agents)** — not human-paced, human-sized commits
+- **Project memory that persists** — knowledge survives sessions, not just conversation context
 - **Optimized for agents under the hood, optimized for humans in the frontend**
 
 **The paradigm shift:**
@@ -144,6 +145,30 @@ Each bullet point challenged and reframed to solve the actual problem without in
 - Transformations capture intent: `rename(function, old, new)` not line diffs
 - Merge conflicts resolved by re-running transformations
 - Full GitHub/CI compatibility maintained
+
+---
+
+### Project Memory → Context Generator
+
+**Original idea:** Build a persistent memory/knowledge store for the project that agents can query — decisions, patterns, history that survives sessions.
+
+**Problem with that:** Memory systems are notoriously hard. RAG is lossy. Knowledge graphs are rigid. Conversation history blows tokens. All treat memory as a retrieval problem — store facts, query facts. But that's not how humans use project knowledge.
+
+**Reframing:** Don't build a memory store. Build a context generator.
+
+The project already HAS memory — code, docs, git history, contracts, decisions. The problem isn't storage, it's synthesis. A "project mind" isn't a database you query. It's a process that generates relevant context for the current task.
+
+**What this means:**
+- No separate memory system to maintain
+- Context generator synthesizes what matters from everything that exists
+- Task-specific briefings, not one-size-fits-all docs
+- Decisions become constraints that shape behavior, not facts to retrieve
+- Memory is alive — a lens through which agents see the project, not a log they search
+
+**The frame:**
+> Decisions aren't stored as facts. They become constraints.
+> History isn't a log. It's patterns that influence choices.
+> Memory isn't retrieved. It's embodied in the agent's starting state.
 
 ---
 

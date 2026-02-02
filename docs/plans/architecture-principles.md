@@ -138,6 +138,91 @@ contract {
 
 ---
 
+---
+
+### 6. Context Generator, Not Memory Store
+
+**Reject:** Building a memory/knowledge store that agents query.
+
+**Instead:** Build a context generator that synthesizes relevant context from existing project state.
+
+**Rationale:** The project already HAS memory — code, docs, git history, contracts, decisions. The problem isn't storage, it's synthesis. RAG is lossy, knowledge graphs are rigid, conversation history blows tokens. None of these capture how humans actually use project knowledge: not as facts to retrieve, but as understanding that shapes behavior.
+
+**How it works:**
+```
+Project State (already exists):
+├── Code
+├── Docs
+├── Git history
+├── Contracts
+├── Decisions log
+└── Past session summaries
+
+Context Generator (the "mind"):
+├── Input: current task + who's asking
+├── Process: synthesize what's relevant
+└── Output: briefing (injected as starting context)
+```
+
+**Key insight:** Decisions aren't facts to store/retrieve. They become constraints that shape behavior:
+
+| Instead of storing... | It becomes... |
+|-----------------------|---------------|
+| "We use TypeScript" | Constraint on all code |
+| "X failed before" | Gotcha to avoid |
+| "Pattern Y works here" | Default for similar tasks |
+
+**Implications:**
+- No separate memory system to maintain
+- No schema to design and keep updated
+- Task-specific context = no token waste
+- The hard problem (synthesis) is what LLMs are good at
+- Memory is alive — a lens, not a log
+
+---
+
+## Design Pattern: Selection Pressure
+
+**Not a pillar — an emergent pattern from the six pillars working together.**
+
+**The insight:** Don't build a learning system. Build selection pressure. Agents don't need to remember what worked — they need to leave the project better than they found it.
+
+**How it works:**
+
+```
+Instead of:
+  Success → Store in memory → Retrieve later → Hope it applies
+
+Do:
+  Success → Transform the project → Future agents inherit transformed state
+```
+
+**Implementation:**
+
+1. **Contracts** get optional `transformations` in output — proposed improvements to project state
+2. **Control Room** shows transformations for human approval/rejection
+3. **Transformation Layer** compiles approved changes to git
+4. **Context Generator** synthesizes from the improved project state
+
+**Transformation types:**
+- Documentation updates (gotchas to CLAUDE.md)
+- Contract template improvements
+- Verification criteria refinements
+- Environment configuration
+- Patterns to codify
+- Decisions to log
+
+**Why this works:**
+- No separate learning system to maintain
+- All "learning" is visible in git (transparent, reversible)
+- Human selection prevents bad pattern reinforcement
+- No ML, embeddings, or retrieval — just structured file changes
+- Project evolves toward better outcomes
+
+**The principle:** Memory is embodied in infrastructure, not stored in databases.
+
+---
+
 ## What This System Is
 
 An **operating environment for agent-driven development**.

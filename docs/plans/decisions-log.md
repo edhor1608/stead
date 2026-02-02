@@ -25,6 +25,7 @@
 | Tasks | Jira/Linear model | Contract-based execution (input/output/verify/rollback) |
 | UI | Dashboard | Control room (air traffic control metaphor) |
 | Version Control | Replace git | Transformation layer that compiles to git |
+| Memory | Store/retrieve facts | Context generator that synthesizes relevant context |
 
 **Rationale:** Each radical take solves the actual problem without inheriting massive maintenance burden. Fork the *concept*, not the *software*.
 
@@ -45,6 +46,20 @@
 **Decision:** Start personal (Jonas's workflow), design for general.
 
 **Rationale:** Dogfooding ensures it solves real problems. But architecture should not be Jonas-specific.
+
+---
+
+## 2026-02-02: Project Memory Architecture
+
+**Context:** Agents need persistent knowledge across sessions. Current approaches (RAG, conversation history, knowledge graphs) all treat memory as a retrieval problem.
+
+**Decision:** Don't build a memory store. Build a context generator.
+
+**Rationale:** The project already HAS memory — code, docs, git history, contracts, decisions. The problem isn't storage, it's synthesis. Memory isn't facts to retrieve; it's understanding that shapes behavior. A context generator synthesizes relevant context for each specific task from everything that exists.
+
+**Key insight:** Decisions become constraints, not stored facts. History becomes patterns, not logs. Memory is embodied in the agent's starting state, not queried from a database.
+
+**Consequences:** No separate memory system to maintain. No schema to keep updated. The "mind" is a process, not a store.
 
 ---
 
