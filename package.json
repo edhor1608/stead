@@ -1,0 +1,21 @@
+{
+  "name": "stead",
+  "version": "0.1.0",
+  "description": "Contract-based execution environment for agent-driven development",
+  "type": "module",
+  "bin": {
+    "stead": "./src/cli/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "build": "bun build ./src/cli/index.ts --compile --outfile=stead",
+    "dev": "bun run ./src/cli/index.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}
