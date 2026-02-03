@@ -63,14 +63,102 @@
 
 ---
 
+## 2026-02-02: Agent SDK Language
+
+**Context:** Contract Engine needs an interface for agents to claim contracts, report status, propose transformations. Question: what language/form should this take?
+
+**Decision:** Protocol-first, not language-first. The "SDK" is a CLI tool (`stead`) with HTTP/JSON API underneath. No language-specific library as primary interface.
+
+**Rationale:** Agents don't import libraries — they shell out. Claude Code uses bash tools, not `import` statements. A CLI works universally (any agent that can execute commands), outputs JSON for machine consumption, and matches how agents actually work. Language-specific SDKs solve the wrong problem.
+
+**Key insight:** The bash tool IS the SDK from the agent's perspective.
+
+**Consequences:** Build `stead` CLI as single binary with JSON output. HTTP API underneath enables control room and optional language bindings later. TypeScript types package (optional) for humans building tooling, not for agents.
+
+See: `docs/plans/decisions/agent-sdk-language.md`
+
+---
+
+## 2026-02-02: Contract Schema Format
+
+**Context:** Contracts are the core abstraction. Need to decide the format agents will consume and produce.
+
+**Decision:** TypeScript-native schema with JSON serialization.
+- Schema definition: TypeScript interfaces
+- Contract instances: JSON conforming to interfaces
+- Verification: TypeScript predicates (compiled to JS)
+- Storage: JSONL (append-only, one contract per line)
+
+**Rationale:** Agents already "think" in TypeScript. Claude Code naturally produces interface-shaped structures. Fighting this wastes effort. JSON is the data, TypeScript is the type system, JavaScript predicates are executable verification.
+
+**Key insight:** Match how agents naturally represent structured data. Don't invent a format they need to learn.
+
+**Consequences:** Tied to JS/TS ecosystem (acceptable given agent tooling landscape). Predicates need sandboxed execution. Schema validation via Zod/Valibot at runtime.
+
+See: `docs/plans/decisions/contract-schema-format.md`
+
+---
+
+## 2026-02-02: First Implementation Target
+
+**Decided:** See [decisions/first-slice.md](decisions/first-slice.md)
+
+**Summary:** CLI that wraps Claude Code tasks in contracts with automated verification. `stead run "task" --verify "cmd"` — no daemon, no UI, just contracts + verification + persistence.
+
+---
+
+## 2026-02-03: First Slice Complete
+
+**Context:** Implemented the CLI-only contract engine with verification as the first slice.
+
+**Decision:** First slice is complete. PR created: https://github.com/edhor1608/stead/pull/1
+
+**What was built:**
+- `stead run "task" --verify "cmd"` - Create and execute contract
+- `stead list [--status=X]` - List contracts
+- `stead show <id>` - Show contract details
+- `stead verify <id>` - Re-run verification
+- YAML storage in `.stead/contracts/`
+- 64 tests passing
+- Compiles to single binary
+
+**Rationale:** Minimal viable contract engine to dogfood agent-driven development workflows.
+
+**Consequences:** Ready to use for real tasks. Next: merge PR, then expand (daemon, UI, or session format work).
+
+---
+
+## 2026-02-03: Universal Session Format Exploration
+
+**Context:** Research into AI CLI session storage (Claude Code, Codex CLI, OpenCode) revealed they all store sessions in incompatible formats. This causes vendor lock-in, fragmented visibility, and no cross-CLI workflows.
+
+**Decision:** Explore Universal Session Format as a potential stead component.
+
+**Rationale:** This directly addresses the Control Room vision — you can't have unified visibility without unified data. Also enables:
+- Session browser across all CLIs
+- Cross-CLI resume (start in Claude, continue in Codex)
+- Session forking and linking
+- A/B testing across models
+
+**Connection to NORTH_STAR:**
+- Reduces *ding* problem: know which CLI finished, restore context instantly
+- Enables Control Room: unified view of agent state across tools
+- Extends Context Generator: sessions as project memory that persists
+
+**Key finding:** Claude Code and OpenCode share `ses_*` ID convention, making conversion between them most feasible.
+
+**Consequences:** New research doc at `docs/research/ai-cli-session-formats.md`, spec at `docs/plans/universal-session-format.md`. Decision on priority vs other stead components TBD.
+
+See: `docs/plans/universal-session-format.md`
+
+---
+
 ## Open Decisions
 
 ### Naming
 - "stead" as project name — keep it?
 - What does stead stand for? (or is it just a word?)
 
-### First Implementation Target
-- Contract engine seems foundational
-- But what's the minimum slice that's useful tomorrow?
-
-*Awaiting decision*
+### Next Priority
+- Merge first slice PR and continue with original roadmap (Control Room)?
+- Or pivot to Universal Session Format as foundational layer for Control Room?
