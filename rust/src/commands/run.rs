@@ -33,12 +33,15 @@ pub fn execute_with_cwd(
 
     // Execute claude with the task
     let claude_result = spawn_claude(task);
-
-    if let Err(e) = &claude_result {
-        if !json_output {
-            eprintln!("Warning: Claude execution failed: {}", e);
+    let claude_error = match &claude_result {
+        Ok(()) => None,
+        Err(e) => {
+            if !json_output {
+                eprintln!("Warning: Claude execution failed: {}", e);
+            }
+            Some(format!("[Claude failed: {}]", e))
         }
-    }
+    };
 
     if !json_output {
         println!("Running verification...");
@@ -47,8 +50,15 @@ pub fn execute_with_cwd(
     // Run verification
     let (passed, output) = run_verification(verify_cmd)?;
 
+    // Combine Claude error with verification output
+    let combined_output = match (claude_error, output) {
+        (Some(err), Some(out)) => Some(format!("{}\n{}", err, out)),
+        (Some(err), None) => Some(err),
+        (None, out) => out,
+    };
+
     // Complete the contract
-    contract.complete(passed, output);
+    contract.complete(passed, combined_output);
     storage::update_contract(&contract, cwd)?;
 
     if json_output {

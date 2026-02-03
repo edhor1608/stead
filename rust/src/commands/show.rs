@@ -36,7 +36,8 @@ pub fn execute_with_cwd(id: &str, json_output: bool, cwd: &Path) -> Result<()> {
         }
         None => {
             if json_output {
-                println!(r#"{{"error": "Contract not found: {}"}}"#, id);
+                let error = serde_json::json!({"error": format!("Contract not found: {}", id)});
+                println!("{}", error);
             } else {
                 bail!("Contract not found: {}", id);
             }

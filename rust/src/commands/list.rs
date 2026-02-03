@@ -69,12 +69,14 @@ fn parse_status(s: &str) -> Result<ContractStatus> {
     }
 }
 
-/// Truncate string with ellipsis
+/// Truncate string with ellipsis (UTF-8 safe)
 fn truncate(s: &str, max_len: usize) -> String {
-    if s.len() <= max_len {
+    let char_count = s.chars().count();
+    if char_count <= max_len {
         s.to_string()
     } else {
-        format!("{}...", &s[..max_len.saturating_sub(3)])
+        let truncated: String = s.chars().take(max_len.saturating_sub(3)).collect();
+        format!("{}...", truncated)
     }
 }
 
@@ -103,6 +105,9 @@ mod tests {
         assert_eq!(truncate("hello", 10), "hello");
         assert_eq!(truncate("hello world", 8), "hello...");
         assert_eq!(truncate("hi", 2), "hi");
+        // UTF-8 safety: should not panic on multi-byte characters
+        assert_eq!(truncate("héllo wörld", 8), "héllo...");
+        assert_eq!(truncate("日本語テスト", 5), "日本...");
     }
 
     #[test]
