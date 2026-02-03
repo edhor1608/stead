@@ -10,7 +10,7 @@ This document captures the full chain: Problem → Vision → Reframings → Pri
 
 Source: [Theo's article](https://x.com/theo/article/2018091358251372601)
 
-```
+```text
 *ding*
 You hear a notification from a Claude Code workflow finishing.
 Which terminal tab was it?
@@ -201,7 +201,7 @@ If the chain breaks, question the decision.
 
 ## What Success Looks Like
 
-```
+```text
 *ding*
 Notification: "qwer-q: memory fix complete. 3 files changed. Tests pass."
 One click/keystroke → full context restored:

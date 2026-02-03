@@ -53,7 +53,7 @@ This isn't "tools that help agents" — it's infrastructure where agents do the 
 **Rationale:** Agents don't need human-readable task descriptions. They need precise specifications. This is closer to database transactions than project management.
 
 **Contract structure:**
-```
+```yaml
 contract {
   id: unique identifier
 
@@ -149,7 +149,7 @@ contract {
 **Rationale:** The project already HAS memory — code, docs, git history, contracts, decisions. The problem isn't storage, it's synthesis. RAG is lossy, knowledge graphs are rigid, conversation history blows tokens. None of these capture how humans actually use project knowledge: not as facts to retrieve, but as understanding that shapes behavior.
 
 **How it works:**
-```
+```text
 Project State (already exists):
 ├── Code
 ├── Docs
@@ -189,7 +189,7 @@ Context Generator (the "mind"):
 
 **How it works:**
 
-```
+```text
 Instead of:
   Success → Store in memory → Retrieve later → Hope it applies
 

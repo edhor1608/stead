@@ -199,7 +199,7 @@ interface ExecutionTrace {
 
 ### Lifecycle States
 
-```
+```text
                     ┌──────────────┐
                     │   pending    │
                     └──────┬───────┘
@@ -604,7 +604,7 @@ const subContracts = await executor.spawn(parentId, [
 
 ### Verification Flow
 
-```
+```text
 Contract completes
        │
        ▼

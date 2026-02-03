@@ -10,7 +10,7 @@ Every architectural choice, tech selection, or feature must trace back to solvin
 
 ## Project Structure
 
-```
+```text
 docs/
   research/       # Problem analysis, user research, prior art
   plans/          # Specs, architecture decisions, roadmaps

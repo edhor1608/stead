@@ -199,10 +199,14 @@ See: `docs/plans/universal-session-format.md`
 - Daemon concept reframes from "build" to "orchestrate"
 - Next step: build USF adapters for CLI integration
 
----
-
 ## Open Decisions
 
 ### Naming
 - "stead" as project name — keep it?
 - What does stead stand for? (or is it just a word?)
+
+### First Implementation Target
+
+**Decided:** See [decisions/first-slice.md](decisions/first-slice.md)
+
+**Summary:** CLI that wraps Claude Code tasks in contracts with automated verification. `stead run "task" --verify "cmd"` — no daemon, no UI, just contracts + verification + persistence.

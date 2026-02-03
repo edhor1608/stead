@@ -62,7 +62,7 @@ All browsers already implement session isolation internally. The question is: **
 
 ### Option A: HTTP/HTTPS Proxy (mitmproxy-style)
 
-```
+```text
 Browser <---> Session Proxy <---> Internet
               (localhost:8080)
 ```
@@ -90,7 +90,7 @@ Browser <---> Session Proxy <---> Internet
 
 ### Option B: Browser Extension
 
-```
+```text
 Browser <---> Extension (in-process) <---> Extension Backend
 ```
 
@@ -129,7 +129,7 @@ Browser <---> Extension (in-process) <---> Extension Backend
 
 ### Option C: CDP (Chrome DevTools Protocol) Controller
 
-```
+```text
 CLI/Agent <---> CDP <---> Chrome
 ```
 
@@ -162,7 +162,7 @@ CLI/Agent <---> CDP <---> Chrome
 
 ### Option D: Hybrid Architecture (Recommended)
 
-```
+```text
                     +-----------------+
                     | Session Manager |
                     | (daemon)        |
@@ -211,7 +211,7 @@ OAuth is the hard case. Here's how it would work:
 
 ### Standard OAuth Flow (Problem)
 
-```
+```text
 1. App redirects to: https://accounts.google.com/oauth?redirect_uri=http://localhost:3000/callback
 2. User authenticates at Google
 3. Google redirects to: http://localhost:3000/callback?code=xxx
@@ -269,7 +269,7 @@ OAuth uses `state` parameter to prevent CSRF. With multiple projects:
 
 **Mitigation:** Session manager validates that OAuth callback's state matches the project that initiated the flow.
 
-```
+```text
 1. Project A starts OAuth, state=abc123
 2. Session manager records: abc123 -> Project A
 3. Callback received with state=abc123
@@ -559,7 +559,7 @@ Integration with tools like Raycast/Alfred for instant switching.
 ```
 
 **Netscape cookie format:**
-```
+```text
 # Netscape HTTP Cookie File
 .example.com	TRUE	/	FALSE	0	name	value
 ```
