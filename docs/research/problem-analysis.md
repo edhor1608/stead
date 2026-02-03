@@ -34,12 +34,12 @@ Active in last week:
 The cognitive cost isn't switching - it's **maintaining multiple contexts simultaneously** while being interrupted by the very tools helping you parallelize.
 
 Traditional flow:
-```
+```text
 Focus → Context → Work → Switch (full reset)
 ```
 
 New reality:
-```
+```text
 Focus → Context → Work → *ding* → Partial switch → Where was I? → *ding*
 ```
 

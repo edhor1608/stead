@@ -10,6 +10,15 @@ export interface VerifyResult {
   passed: boolean;
 }
 
+/** Get cross-platform shell configuration */
+function getShellConfig(): { shell: string; flag: string } {
+  const isWindows = process.platform === 'win32';
+  return {
+    shell: isWindows ? 'cmd' : 'sh',
+    flag: isWindows ? '/c' : '-c',
+  };
+}
+
 /**
  * Load a contract by ID, run its verification command, and update status.
  * @param id - Contract ID to verify
@@ -24,7 +33,8 @@ export async function verifyCommand(id: string, cwd = process.cwd()): Promise<Ve
   }
 
   // Run verification command
-  const proc = Bun.spawn(['sh', '-c', contract.verification], {
+  const { shell, flag } = getShellConfig();
+  const proc = Bun.spawn([shell, flag, contract.verification], {
     cwd,
     stdout: 'pipe',
     stderr: 'pipe',

@@ -9,7 +9,7 @@
 
 The current stead model is linear:
 
-```
+```text
 Define (Contract) → Execute (Daemon) → Verify → Done
 ```
 
@@ -104,7 +104,7 @@ So is a "Learning System" just... more sophisticated Context Generation? Or is i
 
 ### The Obvious Approach (What You'd Build)
 
-```
+```text
 Outcome Tracker
 ├── Log every contract result (success/failure/rollback)
 ├── Capture human corrections
@@ -153,7 +153,7 @@ What DOES apply is evolution: **variation + selection + reproduction**.
 
 **Reproduction:** This is the key insight. Successful approaches should propagate to future contracts. Not as "memory to retrieve" but as **transformations to the project state itself**.
 
-```
+```text
 Instead of:
   Success → Store in memory → Retrieve later → Hope it applies
 
@@ -198,7 +198,7 @@ The project IS the memory. The question is: how do we let successful agents tran
 
 **How It Works:**
 
-```
+```text
 Contract Execution
 ├── Executes task
 ├── Verification passes
@@ -237,7 +237,7 @@ Selection:
 
 Contracts get an optional `transformations` output block:
 
-```
+```text
 contract {
   id: "fix-auth-bug"
 
@@ -268,7 +268,7 @@ contract {
 
 **Selection Flow:**
 
-```
+```text
 Agent completes contract
         │
         ▼

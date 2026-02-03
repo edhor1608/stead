@@ -110,7 +110,7 @@ Control room implications:
 
 Typical workflow:
 
-```
+```text
 1. Scan overview (5 seconds)
 2. Identify items needing attention (if any)
 3. Drill into specific item
@@ -119,7 +119,7 @@ Typical workflow:
 ```
 
 This is different from task management:
-```
+```text
 1. Pick task from queue
 2. Work on task
 3. Mark complete
@@ -179,7 +179,7 @@ With 5+ active projects, naive approaches fail:
 
 The default view shows ALL projects, organized by attention tier:
 
-```
+```text
 ┌─────────────────────────────────────────────┐
 │ NEEDS DECISION (2)                          │
 │ ┌─────────────────────────────────────────┐ │
@@ -233,7 +233,7 @@ This is the most critical UI component. Agents will escalate when they:
 
 Each item needs:
 
-```
+```text
 ┌───────────────────────────────────────────────────────┐
 │ [picalyze] API Rate Limiting Strategy                 │
 │                                                       │

@@ -16,7 +16,7 @@ Agno is a framework for building multi-agent systems. Dash (SQL agent) is one pr
 
 ## Core Hierarchy
 
-```
+```text
 Agent → Team → Workflow
 ```
 

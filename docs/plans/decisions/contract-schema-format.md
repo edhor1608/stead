@@ -193,7 +193,7 @@ export default async function verify(result, context) {
 
 ### Storage (JSONL)
 
-```
+```jsonl
 {"id":"qwer-q/fix-memory-leak/001","version":1,"created_at":"2026-02-02T14:30:00Z","input":{...},"output":{...},...}
 {"id":"qwer-q/fix-memory-leak/001","version":2,"created_at":"2026-02-02T15:45:00Z","input":{...},"output":{...},...}
 {"id":"picalyze/add-export/001","version":1,"created_at":"2026-02-02T16:00:00Z","input":{...},"output":{...},...}

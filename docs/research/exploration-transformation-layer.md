@@ -94,7 +94,7 @@ The semantic layer enables intelligent conflict resolution. The implementation l
 ### Current Reality: File Tree
 
 Agents see the same thing humans see:
-```
+```text
 src/
   auth/
     login.ts
@@ -169,7 +169,7 @@ interface StructuredWorkspace {
 
 ### The Compilation Process
 
-```
+```text
 ┌─────────────────┐     ┌──────────────────┐     ┌────────────────┐
 │ Transformations │────▶│  Transformation  │────▶│  Git Commits   │
 │   (semantic)    │     │    Compiler      │     │   (patches)    │
@@ -179,7 +179,7 @@ interface StructuredWorkspace {
 ### Compilation Strategies
 
 **Strategy 1: One Transform = One Commit**
-```
+```text
 Transform: rename(function, 'auth', 'authenticate')
     ↓
 Commit: "Rename function 'auth' to 'authenticate'"
@@ -190,7 +190,7 @@ Pro: Fine-grained history, easy to trace
 Con: Noisy git log, many small commits
 
 **Strategy 2: Squash to Logical Units**
-```
+```text
 Transforms: [rename, move, modify, modify, modify]
     ↓
 Commit: "Refactor auth module: extract and rename"
@@ -201,7 +201,7 @@ Pro: Cleaner git history
 Con: Loses individual transform traceability
 
 **Strategy 3: Hybrid with Metadata Branch**
-```
+```text
 main branch:     Squashed commits (human-readable)
 .stead branch:   Full transformation log (machine-readable)
 ```
@@ -225,7 +225,7 @@ Git commit messages are limited. Options for storing transformation data:
 
 ### Compilation Example
 
-```
+```text
 Input: Transform {
   type: 'rename',
   target: { type: 'function', path: 'src/auth.ts', identifier: 'login' },
@@ -263,7 +263,7 @@ Git's resolution: "Here are both versions, human figure it out."
 
 Instead of merging patches, **replay transformations on the merged base**.
 
-```
+```text
         base
        /    \
       A      B
@@ -286,7 +286,7 @@ Transform approach:
 
 Consider a rename conflict:
 
-```
+```text
 Base:    function login() { ... }
 Branch A: Renames login → authenticate
 Branch B: Modifies login body
@@ -313,7 +313,7 @@ The transformation knows it operates on a **function identity**, not a **line ra
 
 Not all conflicts disappear. When two agents modify the same function body with different implementations:
 
-```
+```typescript
 Base:    function calc() { return x + y; }
 Agent A: function calc() { return x * y; }  // Multiply
 Agent B: function calc() { return x - y; }  // Subtract
@@ -456,7 +456,7 @@ GitHub/GitLab see **git commits and diffs**. They don't understand transformatio
 
 ### PR Creation Flow
 
-```
+```text
 ┌───────────────────┐
 │ Agent works with  │
 │ transformations   │
@@ -546,7 +546,7 @@ jobs:
 
 **CI/CD sees normal git commits.** The transformation layer is transparent.
 
-```
+```text
 ┌─────────────────┐     ┌─────────────────┐
 │ Transformation  │────▶│  Git Commits    │
 │    Layer        │     │                 │
@@ -596,7 +596,7 @@ Instead of running all tests, run tests that:
 
 **4. Rollback Information**
 If CI fails, provide rollback guidance:
-```
+```text
 Transform t_abc123 (modify: authenticate) likely caused failure.
 To rollback: stead revert t_abc123
 ```
@@ -721,7 +721,7 @@ When code leaves stead (PR merged on GitHub by human), we lose control:
 
 ## Proposed Architecture
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │                     TRANSFORMATION LAYER                        │
 ├─────────────────────────────────────────────────────────────────┤

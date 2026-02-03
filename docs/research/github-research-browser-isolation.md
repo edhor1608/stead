@@ -332,7 +332,7 @@ The landscape divides into:
 
 ### What exists today:
 
-```
+```text
 Full Browser Fork         Browser Extension        Proxy Layer
      (heavy)                (limited)              (flexible)
         |                       |                      |

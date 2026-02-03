@@ -41,6 +41,20 @@ describe('CLI parser', () => {
         error: 'run command requires a task argument',
       });
     });
+
+    test('returns error for unknown flags', () => {
+      const result = parse(['run', 'task', '--verify', 'test', '--unknown']);
+      expect(result).toEqual({
+        error: "Unknown flag(s) for 'run': --unknown",
+      });
+    });
+
+    test('returns error for multiple unknown flags', () => {
+      const result = parse(['run', 'task', '--verify', 'test', '--foo', '--bar']);
+      expect(result).toEqual({
+        error: "Unknown flag(s) for 'run': --foo, --bar",
+      });
+    });
   });
 
   describe('list command', () => {
@@ -64,6 +78,13 @@ describe('CLI parser', () => {
         status: 'completed',
       });
     });
+
+    test('returns error for unknown flags', () => {
+      const result = parse(['list', '--unknown']);
+      expect(result).toEqual({
+        error: "Unknown flag(s) for 'list': --unknown",
+      });
+    });
   });
 
   describe('show command', () => {
@@ -81,6 +102,13 @@ describe('CLI parser', () => {
         error: 'show command requires a contract ID',
       });
     });
+
+    test('returns error for unknown flags', () => {
+      const result = parse(['show', 'abc123', '--verbose']);
+      expect(result).toEqual({
+        error: "Unknown flag(s) for 'show': --verbose",
+      });
+    });
   });
 
   describe('verify command', () => {
@@ -96,6 +124,13 @@ describe('CLI parser', () => {
       const result = parse(['verify']);
       expect(result).toEqual({
         error: 'verify command requires a contract ID',
+      });
+    });
+
+    test('returns error for unknown flags', () => {
+      const result = parse(['verify', 'xyz789', '--debug']);
+      expect(result).toEqual({
+        error: "Unknown flag(s) for 'verify': --debug",
       });
     });
   });

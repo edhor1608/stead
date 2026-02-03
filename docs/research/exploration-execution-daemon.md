@@ -27,7 +27,7 @@ The terminal emulator is overhead. The shell is the real interface—and even th
 
 ### High-Level Design
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │                        Execution Daemon                         │
 ├─────────────────────────────────────────────────────────────────┤
@@ -88,7 +88,7 @@ The terminal emulator is overhead. The shell is the real interface—and even th
 - Same approach used by LSP, MCP, and many daemon services
 
 **Socket location:**
-```
+```text
 ~/.stead/daemon.sock                    # Global daemon socket
 ~/.stead/sessions/{project}/exec.sock   # Per-project sockets (optional)
 ```
@@ -423,7 +423,7 @@ This allows any MCP-compatible agent to use the daemon without custom integratio
 
 For humans who still want terminal UIs:
 
-```
+```text
 ┌─────────────────────────────────────────────┐
 │  Terminal Emulator (any: iTerm, Ghostty)    │
 ├─────────────────────────────────────────────┤
@@ -612,7 +612,7 @@ echo $FOO  # Empty! cd didn't persist!
 - Port management
 
 **Implementation:**
-```
+```text
 Language: TypeScript (Bun runtime)
 Why: Fast startup, good async primitives, same ecosystem as target users
 ```

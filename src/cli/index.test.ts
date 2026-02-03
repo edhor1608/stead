@@ -20,21 +20,28 @@ describe('stead CLI', () => {
   });
 
   test('unknown command exits with error', async () => {
-    try {
-      await $`bun run ./src/cli/index.ts invalid`.throws(true);
-      expect(false).toBe(true); // Should not reach here
-    } catch {
-      // Expected to throw
-      expect(true).toBe(true);
-    }
+    const proc = Bun.spawn(['bun', 'run', './src/cli/index.ts', 'invalid'], {
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    const exitCode = await proc.exited;
+    const stderr = await new Response(proc.stderr).text();
+
+    expect(exitCode).toBe(1);
+    expect(stderr).toContain('Error: Unknown command: invalid');
+    expect(stderr).toContain('Run "stead --help" for usage');
   });
 
   test('missing required args shows error', async () => {
-    try {
-      await $`bun run ./src/cli/index.ts run`.throws(true);
-    } catch {
-      expect(true).toBe(true);
-    }
+    const proc = Bun.spawn(['bun', 'run', './src/cli/index.ts', 'run'], {
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    const exitCode = await proc.exited;
+    const stderr = await new Response(proc.stderr).text();
+
+    expect(exitCode).toBe(1);
+    expect(stderr).toContain('Error: run command requires a task argument');
   });
 });
 

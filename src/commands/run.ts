@@ -43,9 +43,19 @@ async function defaultSpawnClaude(task: string): Promise<SpawnClaudeResult> {
   return { exitCode, output: stdout + stderr };
 }
 
+/** Get cross-platform shell configuration */
+function getShellConfig(): { shell: string; flag: string } {
+  const isWindows = process.platform === 'win32';
+  return {
+    shell: isWindows ? 'cmd' : 'sh',
+    flag: isWindows ? '/c' : '-c',
+  };
+}
+
 /** Run a verification command and capture output */
 async function runVerification(cmd: string): Promise<{ exitCode: number; output: string }> {
-  const proc = Bun.spawn(['sh', '-c', cmd], {
+  const { shell, flag } = getShellConfig();
+  const proc = Bun.spawn([shell, flag, cmd], {
     stdout: 'pipe',
     stderr: 'pipe',
   });

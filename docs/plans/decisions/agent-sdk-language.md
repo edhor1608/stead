@@ -23,7 +23,7 @@ The question: what form should this SDK take?
 
 The "SDK" is a CLI tool (`stead`) with a clean HTTP API underneath. No language-specific library as the primary interface.
 
-```
+```text
 Primary:     stead CLI (what agents actually invoke)
 Secondary:   HTTP/JSON API (what the CLI calls)
 Optional:    TypeScript types package (for programmatic access if needed)
@@ -105,7 +105,7 @@ stead project ports                        # Allocated ports
 
 ### HTTP API (what CLI calls)
 
-```
+```text
 POST   /contracts/:id/claim
 PATCH  /contracts/:id/status
 POST   /contracts/:id/complete

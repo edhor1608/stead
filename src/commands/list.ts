@@ -1,11 +1,17 @@
 import { listContracts } from '../storage/yaml.ts';
-import type { Contract } from '../schema/contract.ts';
+import type { Contract, ContractStatus } from '../schema/contract.ts';
+
+const VALID_STATUSES: ContractStatus[] = ['pending', 'running', 'passed', 'failed'];
 
 /**
  * List contracts with optional status filtering.
  * Returns formatted table output.
  */
 export async function listCommand(statusFilter?: string, cwd?: string): Promise<string> {
+  if (statusFilter && !VALID_STATUSES.includes(statusFilter as ContractStatus)) {
+    throw new Error(`Invalid status '${statusFilter}'. Valid values: ${VALID_STATUSES.join(', ')}`);
+  }
+
   let contracts = await listContracts(cwd);
 
   if (statusFilter) {

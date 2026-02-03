@@ -166,7 +166,7 @@ stead is an operating environment for agent-driven development. Agents are the p
 - History isn't a log — it's patterns that influence choices
 
 **How It Works:**
-```
+```text
 Project State (already exists):
 ├── Code
 ├── Docs
@@ -210,7 +210,7 @@ Context Generator (the "mind"):
 
 ## Build Order
 
-```
+```text
 Phase 1: Contract Engine (Weeks 1-6)
 ├── Core schema and state machine
 ├── SQLite persistence

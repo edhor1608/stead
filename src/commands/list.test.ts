@@ -137,4 +137,10 @@ describe('listCommand', () => {
     expect(result).not.toContain(longTask);
     expect(result.length).toBeLessThan(longTask.length + 100);
   });
+
+  test('throws error for invalid status filter', async () => {
+    await expect(listCommand('invalid', testDir)).rejects.toThrow(
+      "Invalid status 'invalid'. Valid values: pending, running, passed, failed"
+    );
+  });
 });

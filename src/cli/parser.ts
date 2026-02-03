@@ -33,8 +33,10 @@ export function parse(args: string[]): ParseResult {
 }
 
 function parseRun(args: string[]): ParseResult {
+  const validFlags = new Set(['--verify']);
   let task: string | undefined;
   let verify: string | undefined;
+  const unknownFlags: string[] = [];
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!;
@@ -44,9 +46,18 @@ function parseRun(args: string[]): ParseResult {
       i += 1;
     } else if (arg.startsWith('--verify=')) {
       verify = arg.slice('--verify='.length);
+    } else if (arg.startsWith('--')) {
+      const flagName = arg.includes('=') ? arg.slice(0, arg.indexOf('=')) : arg;
+      if (!validFlags.has(flagName)) {
+        unknownFlags.push(flagName);
+      }
     } else if (!arg.startsWith('-')) {
       task = arg;
     }
+  }
+
+  if (unknownFlags.length > 0) {
+    return { error: `Unknown flag(s) for 'run': ${unknownFlags.join(', ')}` };
   }
 
   if (!task) {
@@ -61,7 +72,9 @@ function parseRun(args: string[]): ParseResult {
 }
 
 function parseList(args: string[]): ParseResult {
+  const validFlags = new Set(['--status']);
   let status: string | undefined;
+  const unknownFlags: string[] = [];
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!;
@@ -71,7 +84,16 @@ function parseList(args: string[]): ParseResult {
       i += 1;
     } else if (arg.startsWith('--status=')) {
       status = arg.slice('--status='.length);
+    } else if (arg.startsWith('--')) {
+      const flagName = arg.includes('=') ? arg.slice(0, arg.indexOf('=')) : arg;
+      if (!validFlags.has(flagName)) {
+        unknownFlags.push(flagName);
+      }
     }
+  }
+
+  if (unknownFlags.length > 0) {
+    return { error: `Unknown flag(s) for 'list': ${unknownFlags.join(', ')}` };
   }
 
   if (status !== undefined) {
@@ -88,6 +110,12 @@ function parseShow(args: string[]): ParseResult {
     return { error: 'show command requires a contract ID' };
   }
 
+  const unknownFlags = args.slice(1).filter(arg => arg.startsWith('--'));
+  if (unknownFlags.length > 0) {
+    const flagNames = unknownFlags.map(f => f.includes('=') ? f.slice(0, f.indexOf('=')) : f);
+    return { error: `Unknown flag(s) for 'show': ${flagNames.join(', ')}` };
+  }
+
   return { command: 'show', id };
 }
 
@@ -96,6 +124,12 @@ function parseVerify(args: string[]): ParseResult {
 
   if (!id || id.startsWith('-')) {
     return { error: 'verify command requires a contract ID' };
+  }
+
+  const unknownFlags = args.slice(1).filter(arg => arg.startsWith('--'));
+  if (unknownFlags.length > 0) {
+    const flagNames = unknownFlags.map(f => f.includes('=') ? f.slice(0, f.indexOf('=')) : f);
+    return { error: `Unknown flag(s) for 'verify': ${flagNames.join(', ')}` };
   }
 
   return { command: 'verify', id };

@@ -17,7 +17,7 @@ The 6 pillars (Contract Engine, Execution Daemon, Session Proxy, Control Room, T
 
 **A CLI that wraps Claude Code tasks in contracts with automated verification.**
 
-```
+```bash
 stead run "fix the login bug" --verify "bun test auth"
 ```
 
@@ -94,13 +94,13 @@ That's it. No daemon. No UI. No browser. Just: **contract creation + Claude Code
 
 The insight: agents need contracts (input/output/verify), not tasks (descriptions). Current Claude Code workflow:
 
-```
+```text
 Run agent → *ding* → manually check if it worked → manually track what was done
 ```
 
 After this slice:
 
-```
+```text
 stead run → agent runs → verification runs → contract persists with result
 ```
 

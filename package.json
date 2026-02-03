@@ -13,7 +13,7 @@
     "dev": "bun run ./src/cli/index.ts"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "1.3.8"
   },
   "peerDependencies": {
     "typescript": "^5.9.3"

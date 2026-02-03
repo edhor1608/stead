@@ -10,6 +10,17 @@ import { join } from 'node:path';
 import { stringify, parse } from 'yaml';
 import type { Contract } from '../schema/contract.ts';
 
+/** Custom error for storage-related failures */
+export class StorageError extends Error {
+  public readonly path?: string;
+
+  constructor(message: string, cause?: unknown, path?: string) {
+    super(message, { cause });
+    this.name = 'StorageError';
+    this.path = path;
+  }
+}
+
 const STEAD_DIR = '.stead';
 const CONTRACTS_DIR = 'contracts';
 
@@ -21,8 +32,24 @@ export function getContractsDir(cwd = process.cwd()): string {
 /** Ensure the contracts directory exists */
 export async function ensureContractsDir(cwd = process.cwd()): Promise<string> {
   const dir = getContractsDir(cwd);
-  await mkdir(dir, { recursive: true });
-  return dir;
+  try {
+    await mkdir(dir, { recursive: true });
+    return dir;
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === 'EACCES' || code === 'EPERM') {
+      throw new StorageError(
+        `Permission denied: cannot create contracts directory at ${dir}`,
+        err,
+        dir
+      );
+    }
+    throw new StorageError(
+      `Failed to create contracts directory at ${dir}: ${(err as Error).message}`,
+      err,
+      dir
+    );
+  }
 }
 
 /** Generate a unique contract ID */
@@ -41,51 +68,136 @@ export function getContractPath(id: string, cwd = process.cwd()): string {
 export async function writeContract(contract: Contract, cwd = process.cwd()): Promise<void> {
   await ensureContractsDir(cwd);
   const path = getContractPath(contract.id, cwd);
-  const yaml = stringify(contract);
-  await writeFile(path, yaml, 'utf-8');
+
+  let yaml: string;
+  try {
+    yaml = stringify(contract);
+  } catch (err) {
+    throw new StorageError(
+      `Failed to serialize contract ${contract.id}: ${(err as Error).message}`,
+      err,
+      path
+    );
+  }
+
+  try {
+    await writeFile(path, yaml, 'utf-8');
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === 'EACCES' || code === 'EPERM') {
+      throw new StorageError(
+        `Permission denied: cannot write contract to ${path}`,
+        err,
+        path
+      );
+    }
+    if (code === 'ENOSPC') {
+      throw new StorageError(`Disk full: cannot write contract to ${path}`, err, path);
+    }
+    throw new StorageError(
+      `Failed to write contract to ${path}: ${(err as Error).message}`,
+      err,
+      path
+    );
+  }
 }
 
 /** Read a contract from storage */
 export async function readContract(id: string, cwd = process.cwd()): Promise<Contract | null> {
   const path = getContractPath(id, cwd);
+
+  let content: string;
   try {
-    const content = await readFile(path, 'utf-8');
-    return parse(content) as Contract;
+    content = await readFile(path, 'utf-8');
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT') {
       return null;
     }
-    throw err;
+    if (code === 'EACCES' || code === 'EPERM') {
+      throw new StorageError(`Permission denied: cannot read contract at ${path}`, err, path);
+    }
+    throw new StorageError(
+      `Failed to read contract at ${path}: ${(err as Error).message}`,
+      err,
+      path
+    );
+  }
+
+  try {
+    return parse(content) as Contract;
+  } catch (err) {
+    throw new StorageError(
+      `Corrupted contract file at ${path}: invalid YAML syntax`,
+      err,
+      path
+    );
   }
 }
 
-/** List all contracts in storage */
+/**
+ * List all contracts in storage.
+ *
+ * Gracefully skips corrupted contract files, logging warnings but continuing
+ * to load valid contracts. This prevents one bad file from breaking the entire list.
+ */
 export async function listContracts(cwd = process.cwd()): Promise<Contract[]> {
   const dir = getContractsDir(cwd);
 
+  let files: string[];
   try {
-    const files = await readdir(dir);
-    const yamlFiles = files.filter((f) => f.endsWith('.yaml'));
+    files = await readdir(dir);
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT') {
+      return [];
+    }
+    if (code === 'EACCES' || code === 'EPERM') {
+      throw new StorageError(
+        `Permission denied: cannot read contracts directory at ${dir}`,
+        err,
+        dir
+      );
+    }
+    throw new StorageError(
+      `Failed to read contracts directory at ${dir}: ${(err as Error).message}`,
+      err,
+      dir
+    );
+  }
 
-    const contracts: Contract[] = [];
-    for (const file of yamlFiles) {
-      const id = file.replace('.yaml', '');
+  const yamlFiles = files.filter((f) => f.endsWith('.yaml'));
+  const contracts: Contract[] = [];
+  const errors: { id: string; error: string }[] = [];
+
+  for (const file of yamlFiles) {
+    const id = file.replace('.yaml', '');
+    try {
       const contract = await readContract(id, cwd);
       if (contract) {
         contracts.push(contract);
       }
+    } catch (err) {
+      // Skip corrupted files but track them for potential reporting
+      errors.push({
+        id,
+        error: err instanceof StorageError ? err.message : (err as Error).message,
+      });
     }
-
-    // Sort by created_at descending (newest first)
-    return contracts.sort(
-      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    );
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-      return [];
-    }
-    throw err;
   }
+
+  // Log warnings for corrupted files (could be expanded to return these)
+  if (errors.length > 0) {
+    console.warn(
+      `Warning: ${errors.length} contract file(s) could not be loaded:`,
+      errors.map((e) => `\n  - ${e.id}: ${e.error}`).join('')
+    );
+  }
+
+  // Sort by created_at descending (newest first)
+  return contracts.sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  );
 }
 
 /** Check if contracts directory exists */
