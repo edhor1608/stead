@@ -196,14 +196,15 @@ Context Generator (the "mind"):
 
 | Layer | Technology | Rationale |
 |-------|------------|-----------|
-| State machines | XState v5 | Zero deps, TypeScript, battle-tested |
-| Persistence | SQLite | Local-first, embedded, fast |
+| Core language | Rust | Single language for all components, performance, correctness |
+| State machines | Rust enums + match | Native pattern matching, no runtime overhead |
+| Persistence | SQLite (rusqlite) | Local-first, embedded, fast |
 | Daemon IPC | Unix socket + JSON-RPC | Same as LSP/MCP, proven pattern |
 | Desktop UI | Tauri | Small footprint, Rust backend, web frontend |
 | Real-time | SSE | Simpler than WebSockets for server→client |
 | Browser automation | Playwright | Best context isolation, agent-ready |
 | Browser extension | Firefox WebExtensions | Native container API |
-| Code transforms | tree-sitter + ts-morph | Language-agnostic parsing + TS-specific transforms |
+| Code transforms | tree-sitter | Language-agnostic parsing, Rust native |
 | Git abstraction | Jujutsu patterns | Proven git-compatible approach |
 
 ---
@@ -237,7 +238,7 @@ Phase 4: Session Proxy (Weeks 15-18)
 └── Control room integration
 
 Phase 5: Transformation Layer (Weeks 19-24)
-├── TypeScript PoC
+├── Rust implementation (updated from TypeScript PoC)
 ├── Basic transforms
 ├── Git compilation
 └── Conflict replay
@@ -265,9 +266,10 @@ Phase 5: Transformation Layer (Weeks 19-24)
 
 ### Immediate (Before Phase 1)
 
-1. **Contract schema format** — JSON Schema? TypeScript types? Both?
-2. **Agent SDK language** — TypeScript first? Multi-language from start?
-3. **Naming** — "stead" final? What does it mean?
+1. **Contract schema format** — **Decided**: Rust structs with serde, JSON serialization. See `contract-schema-format.md`
+2. **Agent SDK language** — **Decided**: Protocol-first (CLI + HTTP API), Rust implementation. See `agent-sdk-language.md`
+3. **Tech stack** — **Decided**: Rust. See `decisions-log.md`
+4. **Naming** — "stead" final? What does it mean?
 
 ### Deferred (Decide During Build)
 

@@ -13,7 +13,7 @@ Constraints:
 - Claude Code (dominant agent) runs as Node.js but interacts via bash tools + file operations
 - Agents are not programs that import libraries — they're LLMs that use tools
 - Future agents might run in different runtimes (Python, Rust, whatever)
-- Contract Engine is TypeScript/Effect-TS
+- Contract Engine is Rust
 
 The question: what form should this SDK take?
 
@@ -24,9 +24,8 @@ The question: what form should this SDK take?
 The "SDK" is a CLI tool (`stead`) with a clean HTTP API underneath. No language-specific library as the primary interface.
 
 ```text
-Primary:     stead CLI (what agents actually invoke)
-Secondary:   HTTP/JSON API (what the CLI calls)
-Optional:    TypeScript types package (for programmatic access if needed)
+Agent interface:    stead CLI (what agents actually invoke)
+Human interface:    Control Room UI
 ```
 
 ## Rationale
@@ -123,27 +122,25 @@ GET    /project/status
 GET    /project/ports
 ```
 
-### Optional: TypeScript Types Package
+### Two Primary Interfaces
 
-For humans building integrations or testing:
+This document focuses on the **agent interface** (CLI). But stead has two primary interfaces:
 
-```typescript
-// @stead/types - just types, no runtime
-interface Contract {
-  id: string;
-  input: unknown;
-  output: { schema: JSONSchema };
-  verify: VerificationSpec;
-  rollback: RollbackProcedure;
-}
+| Interface | Users | Implementation |
+|-----------|-------|----------------|
+| CLI | AI agents | Agents shell out to `stead` CLI |
+| Control Room UI | Humans | - (open) |
 
-interface TransformProposal {
-  type: 'rename' | 'move' | 'extract' | ...;
-  args: Record<string, unknown>;
-}
-```
+Both are first-class. The CLI is how agents interact; the Control Room is how humans supervise.
 
-This is NOT the agent SDK. It's for humans writing tooling.
+### Control Room UI (Human Interface)
+
+The Control Room is a UI. It provides:
+- Unified view of agent work across all projects
+- Contract status, approvals, reviews
+- Attention-priority organization (needs decision > anomalies > completed > running)
+
+
 
 ## Trade-offs
 
@@ -172,9 +169,8 @@ Don't solve hypothetical problems.
 ## Implementation Notes
 
 The `stead` CLI should be:
-- Single binary (Bun compile or similar)
-- Fast startup (<50ms)
-- JSON-first output
+- Single binary (Rust)
+- Fast startup (<10ms)
 - Installed globally or per-project
 
 The HTTP API runs as part of the stead daemon (which manages execution contexts, ports, etc.).
@@ -182,11 +178,14 @@ The HTTP API runs as part of the stead daemon (which manages execution contexts,
 ## Connection to North Star
 
 **Does this reduce the *ding* problem?**
-- Indirectly yes — clean contract interface means agents report status properly, control room knows what's happening
+- Yes — clean contract interface means agents report status properly
+- Control Room UI shows what's running, what finished, what needs attention
+- One click/keystroke restores full context for any project
 
-**Is this agent-first?**
-- Yes — CLI is optimized for machine consumption (JSON output, predictable structure)
-- Human mode is explicitly secondary (`--human` flag)
+**Is this agent-first AND human-friendly?**
+- CLI is optimized for agents
+- Control Room UI is optimized for humans (visual, attention-priority)
+- "Optimized for agents under the hood, optimized for humans in the frontend"
 
 **Is this the simplest solution?**
 - Yes — no language-specific libraries to maintain, no version conflicts, universal compatibility

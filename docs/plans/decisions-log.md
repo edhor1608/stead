@@ -199,6 +199,40 @@ See: `docs/plans/universal-session-format.md`
 - Daemon concept reframes from "build" to "orchestrate"
 - Next step: build USF adapters for CLI integration
 
+## 2026-02-03: Tech Stack - Rust
+
+**Context:** First slice was built in TypeScript/Bun. Evaluated language options for the full implementation: TypeScript (Bun or Node), Go, Rust. Key constraint: verification predicates were originally designed as JS functions, which would lock us to a JS runtime.
+
+**Decision:** Rust for the core implementation. Verification changes from "JS predicates" to "shell commands + expression assertions."
+
+**Rationale:**
+- Verification doesn't dictate the stack — it's not the hot path, runs occasionally
+- Shell commands handle 90% of verification (same as CI/CD)
+- Expression language (cel-rust or rhai) handles output inspection
+- Complex verification → external scripts in any language
+- Rust benefits: fast CLI startup (~2ms), single binary, strict compiler catches errors
+- AI coding agents work well with Rust — compiler acts as reviewer
+
+**Consequences:**
+- Rewrite first slice from TypeScript to Rust
+- Need Rust ecosystem
+- Expression evaluator needed for assertions (cel-rust or similar)
+- Longer compile times (acceptable tradeoff)
+
+---
+
+## 2026-02-03: Verification Approach Revised
+
+**Context:** Original contract-schema-format decision specified "TypeScript predicates compiled to JavaScript." This locked us to a JS runtime.
+
+**Decision:** Replace JS predicates with shell commands + expression assertions.
+
+**Rationale:** Commands handle behavior checks (tests pass, server responds). Expressions handle output inspection (agent followed constraints). External scripts handle complex logic. No embedded JS runtime needed.
+
+**Consequences:** Update contract-schema-format.md to reflect new approach.
+
+---
+
 ## Open Decisions
 
 ### Naming

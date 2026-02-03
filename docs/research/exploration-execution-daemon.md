@@ -1,5 +1,7 @@
 # Exploration: Execution Daemon
 
+> **Historical Note:** This exploration document was written when TypeScript/Bun was being considered for implementation. The tech stack decision has since been made: **stead will be implemented in Rust**. See [decisions-log.md](../plans/decisions-log.md) for details. The architectural concepts and requirements discussed here remain valid; only the implementation language has changed.
+
 Date: 2026-02-02
 
 ## The Core Insight

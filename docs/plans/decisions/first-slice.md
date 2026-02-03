@@ -1,5 +1,7 @@
 # Decision: First Slice
 
+> **Historical Note:** The first slice was initially implemented in TypeScript/Bun (v1, merged February 2026). This document has been updated to reflect the v2 rewrite in Rust. The scope and success criteria remain valid; only the implementation technology changed.
+
 ## Context
 
 We're scoping the first buildable slice of stead — an operating environment for agent-driven development.
@@ -47,8 +49,8 @@ That's it. No daemon. No UI. No browser. Just: **contract creation + Claude Code
    - `stead verify <id>` — re-run verification on existing contract
 
 3. **Contract storage**
-   - YAML files in `.stead/contracts/`
-   - Human-readable, git-trackable
+   - JSONL file at `.stead/contracts.jsonl`
+   - Append-only, git-trackable, machine-readable
    - No database
 
 4. **Claude Code integration**
@@ -133,14 +135,18 @@ Daemon runs multiple things in parallel. We don't need parallelism to prove the 
 | YAML contracts get messy | Keep schema minimal. Add complexity only when proven needed. |
 | Scope creep to "just add X" | This doc is the scope. Anything not IN SCOPE requires a new decision. |
 | Takes longer than 2 weeks | Cut to even smaller: just `run` and `list`. No `show`, no `verify`. |
+| Rust learning curve | Start with minimal features. Leverage compiler to catch errors. |
 
 ## Implementation Notes
 
-**Tech stack decision deferred**, but likely:
-- TypeScript (Jonas's comfort zone)
-- Bun (fast, TypeScript-native)
-- YAML storage (human-readable)
-- No frameworks for CLI (just args parsing)
+**Tech stack (v2):**
+- Rust (performance, single binary, type safety)
+- JSONL storage (append-only, as per contract-schema-format decision)
+- clap for CLI argument parsing
+
+**v1 implementation (historical):**
+- TypeScript/Bun
+- YAML storage (simpler for debugging, migrating to JSONL in v2)
 
 **Open questions to resolve during build:**
 - Exact contract YAML schema

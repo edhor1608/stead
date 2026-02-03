@@ -20,26 +20,26 @@ Question: What format best fits agent consumption?
 
 ## Decision
 
-**TypeScript-native schema with JSON serialization.**
+**Rust-native schema with JSON serialization.**
 
 Specifically:
-1. **Schema definition**: TypeScript interfaces (the "type system")
-2. **Contract instances**: JSON conforming to those interfaces (the "data")
-3. **Verification**: TypeScript predicates compiled to JavaScript (the "checks")
+1. **Schema definition**: Rust structs (the "type system")
+2. **Contract instances**: JSON conforming to those structs (the "data")
+3. **Verification**: Shell commands + expression assertions (the "checks")
 4. **Storage**: JSONL files (append-only, one contract per line)
 
-The contract engine validates JSON instances against TypeScript interfaces at runtime using a schema validator (like Zod or Valibot).
+The contract engine validates JSON instances against Rust structs at compile time via serde deserialization.
 
 ## Rationale
 
-**Agents already think in TypeScript.**
+**Agents output structured data; Rust consumes it naturally.**
 
-Claude Code's internal reasoning naturally produces TypeScript-like structures. When asked to "define a contract," it generates interface-shaped descriptions. Fighting this is wasted effort.
+Claude Code and other agents produce JSON-structured outputs. Rust with serde handles JSON deserialization with compile-time type checking, ensuring contract data is always valid before processing begins.
 
 **Separation of concerns:**
-- TypeScript interfaces = the contract *language* (what's possible)
+- Rust structs = the contract *language* (what's possible)
 - JSON instances = contract *data* (specific contracts)
-- JavaScript predicates = verification *logic* (how to check)
+- Shell commands + assertions = verification *logic* (how to check)
 
 **Why not alternatives:**
 
@@ -50,12 +50,13 @@ Claude Code's internal reasoning naturally produces TypeScript-like structures. 
 | Custom DSL | Maintenance burden, agents must learn new syntax |
 | YAML | Ambiguous parsing, whitespace-sensitive, no types |
 | S-expressions | Unfamiliar, no tooling, poor editor support |
+| TypeScript/JS | Runtime type errors, heavier deployment, no single binary |
 
-**Why TypeScript specifically:**
-- Claude Code already uses TypeScript for tool definitions
-- First-class IDE support (autocomplete, validation)
-- Predicates are just functions - no special verification language
-- Compiles away completely - runtime is pure JSON + JS
+**Why Rust specifically:**
+- Single binary distribution - no runtime dependencies to manage
+- Compile-time guarantees - schema violations caught before runtime
+- Performance - fast contract validation and execution
+- Memory safety - no crashes from null pointers or buffer overflows
 
 **Why JSONL for storage:**
 - Append-only semantics match contract lifecycle
@@ -65,58 +66,108 @@ Claude Code's internal reasoning naturally produces TypeScript-like structures. 
 
 ## Examples
 
-### Schema Definition (TypeScript)
+### Schema Definition Example (Rust)
 
-```typescript
-// contracts/schema.ts
+```rust
+// src/contracts/schema.rs
 
-interface ContractInput {
-  type: string;
-  data: unknown;
-  constraints?: Record<string, unknown>;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ContractInput {
+    #[serde(rename = "type")]
+    pub input_type: String,
+    pub data: serde_json::Value,
+    #[serde(default)]
+    pub constraints: Option<HashMap<String, serde_json::Value>>,
 }
 
-interface ContractOutput {
-  type: string;
-  schema: unknown;  // JSON Schema or TypeScript type reference
-  artifacts?: string[];  // file paths produced
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ContractOutput {
+    #[serde(rename = "type")]
+    pub output_type: String,
+    pub schema: serde_json::Value,
+    #[serde(default)]
+    pub artifacts: Option<Vec<String>>,
 }
 
-interface Verification {
-  predicate: string;  // JavaScript function as string, or reference
-  timeout_ms?: number;
-  retry?: { max: number; delay_ms: number };
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Verification {
+    pub command: String,
+    #[serde(default)]
+    pub timeout_ms: Option<u64>,
+    #[serde(default)]
+    pub assertions: Option<Vec<String>>,
+    #[serde(default)]
+    pub retry: Option<RetryConfig>,
 }
 
-interface Rollback {
-  strategy: 'git_reset' | 'restore_snapshot' | 'custom';
-  custom?: string;  // JavaScript function if strategy is 'custom'
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RetryConfig {
+    pub max: u32,
+    pub delay_ms: u64,
 }
 
-interface Resource {
-  type: 'port' | 'session' | 'file_lock' | 'env';
-  spec: unknown;
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RollbackStrategy {
+    GitReset,
+    RestoreSnapshot,
+    Custom,
 }
 
-interface Contract {
-  id: string;
-  version: number;
-  created_at: string;  // ISO 8601
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Rollback {
+    pub strategy: RollbackStrategy,
+    #[serde(default)]
+    pub custom: Option<String>,
+}
 
-  input: ContractInput;
-  output: ContractOutput;
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ResourceType {
+    Port,
+    Session,
+    FileLock,
+    Env,
+}
 
-  verification: Verification;
-  rollback: Rollback;
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Resource {
+    #[serde(rename = "type")]
+    pub resource_type: ResourceType,
+    pub spec: serde_json::Value,
+}
 
-  dependencies?: string[];  // contract IDs
-  resources?: Resource[];
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ContractMetadata {
+    pub project: String,
+    #[serde(default)]
+    pub agent: Option<String>,
+    #[serde(default)]
+    pub human_summary: Option<String>,
+}
 
-  metadata?: {
-    project: string;
-    agent?: string;
-    human_summary?: string;  // for control room display only
-  };
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Contract {
+    pub id: String,
+    pub version: u32,
+    pub created_at: String,  // ISO 8601
+
+    pub input: ContractInput,
+    pub output: ContractOutput,
+
+    pub verification: Verification,
+    pub rollback: Rollback,
+
+    #[serde(default)]
+    pub dependencies: Option<Vec<String>>,
+    #[serde(default)]
+    pub resources: Option<Vec<Resource>>,
+
+    #[serde(default)]
+    pub metadata: Option<ContractMetadata>,
 }
 ```
 
@@ -131,7 +182,7 @@ interface Contract {
   "input": {
     "type": "codebase_context",
     "data": {
-      "files": ["src/memory/*.ts"],
+      "files": ["src/memory/*.rs"],
       "issue": "Memory grows unbounded when processing large datasets"
     },
     "constraints": {
@@ -146,12 +197,16 @@ interface Contract {
       "modified_files": "string[]",
       "test_coverage": "boolean"
     },
-    "artifacts": ["src/memory/pool.ts", "src/memory/pool.test.ts"]
+    "artifacts": ["src/memory/pool.rs", "src/memory/pool_test.rs"]
   },
 
   "verification": {
-    "predicate": "(result) => result.test_coverage && result.modified_files.length > 0",
-    "timeout_ms": 30000
+    "command": "cargo test -p memory",
+    "timeout_ms": 30000,
+    "assertions": [
+      "output.test_coverage == true",
+      "output.modified_files.len() > 0"
+    ]
   },
 
   "rollback": {
@@ -173,23 +228,34 @@ interface Contract {
 }
 ```
 
-### Verification Predicate (JavaScript)
+### Verification Example (Shell Command + Assertions)
 
-```javascript
-// For complex verification, predicates can be external files
-// contracts/verify/qwer-q/memory-fix.js
-
-export default async function verify(result, context) {
-  // Check tests pass
-  const testResult = await context.run('bun', ['test', 'src/memory/']);
-  if (testResult.exitCode !== 0) return false;
-
-  // Check no memory growth
-  const memCheck = await context.run('bun', ['run', 'benchmark:memory']);
-  const baseline = context.input.constraints.memory_baseline;
-  return memCheck.peakMemory <= baseline * 1.1;  // 10% tolerance
-}
+```yaml
+# Verification runs a shell command and evaluates assertions against agent output
+verification:
+  command: "cargo test -p memory"
+  timeout_ms: 30000
+  assertions:
+    - "output.test_coverage == true"
+    - "output.modified_files.len() > 0"
 ```
+
+For complex verification, the command can be a custom script:
+
+```yaml
+verification:
+  command: "./scripts/verify-memory-fix.sh"
+  timeout_ms: 60000
+  assertions:
+    - "exit_code == 0"
+    - "output.peak_memory_mb <= input.constraints.memory_baseline * 1.1"
+```
+
+**Expression language:** Assertions use an expression evaluator (like [cel-rust](https://github.com/clarkmcc/cel-rust) or [rhai](https://rhai.rs/)) for inspecting the agent's structured output. The evaluator has access to:
+- `output` - the agent's structured JSON output
+- `input` - the original contract input
+- `exit_code` - command exit code
+- `stdout` / `stderr` - command output
 
 ### Storage (JSONL)
 
@@ -203,32 +269,35 @@ export default async function verify(result, context) {
 
 ### What we gain
 
-- **Zero translation cost** - agents output what the schema expects
-- **Type safety** - IDE catches errors before runtime
-- **Familiar tooling** - TypeScript, JSON, JavaScript are universal
-- **Executable verification** - predicates are code, not prose
+- **Single binary** - no runtime dependencies, easy distribution
+- **Compile-time safety** - schema violations caught at build time, not runtime
+- **Performance** - fast contract parsing and validation
+- **Memory safety** - no null pointer crashes or buffer overflows
+- **Familiar data format** - JSON is universal; only the engine is Rust
+- **Executable verification** - shell commands are language-agnostic
 - **Composable** - contracts reference each other naturally
 - **Auditable** - JSONL provides append-only history
 
 ### What we give up
 
-- **Not language-agnostic** - tied to JS/TS ecosystem (acceptable: most agent tooling is JS)
-- **Predicates can be arbitrary code** - security consideration for untrusted contracts
 - **No visual representation** - control room must render JSON (but that's its job)
 - **Schema evolution requires care** - version field exists for this
 
 ### Mitigations
 
-- **Security**: Predicates run in sandboxed context, timeout enforced
-- **Language lock-in**: JSON is the data format; only verification requires JS
+- **Learning curve**: serde derive macros hide most complexity; schema changes are infrequent
+- **Compile time**: Release builds are one-time; development uses cargo check / cargo test
 - **Schema evolution**: Version field + migration scripts + backwards-compatible changes
+- **Verification flexibility**: Shell commands can invoke any language (Python, Node, etc.) if needed
 
 ## Open Questions (for later)
 
-- Should predicates be a restricted subset of JavaScript?
-- How do we handle predicate dependencies (npm packages)?
+- Which expression evaluator? cel-rust (Google's CEL) vs rhai (Rust-native scripting)
+- Should assertions support async operations (HTTP calls, file checks)?
 - Should there be a "dry run" mode that validates without executing?
+- How do we handle verification scripts that need specific toolchains?
 
 ---
 
 *Decision made: 2026-02-02*
+*Updated: 2026-02-03 - Changed from TypeScript to Rust*

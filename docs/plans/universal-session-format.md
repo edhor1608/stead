@@ -46,6 +46,14 @@ An abstraction layer that:
                               opencode/
 ```
 
+## Implementation Note
+
+The schemas below are shown in TypeScript-like pseudo-code for readability. This is documentation, not implementation.
+
+- **Implementation:** Rust structs
+- **Interoperability:** The format is language-agnostic; any language can implement adapters using this schema
+- **Future:** JSON Schema may be published for formal validation
+
 ## Universal Format Schema
 
 ```typescript
@@ -175,7 +183,7 @@ type UniversalTool =
 - [ ] Claude Code → Universal parser
 - [ ] Codex CLI → Universal parser
 - [ ] OpenCode → Universal parser
-- [ ] CLI tool: `usf convert <session> --from claude --to universal`
+- [ ] `stead` CLI subcommand: `stead session convert <session> --from claude --to universal`
 
 ### Phase 2: Round-Trip Support
 - [ ] Universal → Claude Code writer
