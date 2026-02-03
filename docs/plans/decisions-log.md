@@ -99,6 +99,106 @@ See: `docs/plans/decisions/contract-schema-format.md`
 
 ---
 
+## 2026-02-02: First Implementation Target
+
+**Decided:** See [decisions/first-slice.md](decisions/first-slice.md)
+
+**Summary:** CLI that wraps Claude Code tasks in contracts with automated verification. `stead run "task" --verify "cmd"` — no daemon, no UI, just contracts + verification + persistence.
+
+---
+
+## 2026-02-03: First Slice Complete
+
+**Context:** Implemented the CLI-only contract engine with verification as the first slice.
+
+**Decision:** First slice is complete. PR created: https://github.com/edhor1608/stead/pull/1
+
+**What was built:**
+- `stead run "task" --verify "cmd"` - Create and execute contract
+- `stead list [--status=X]` - List contracts
+- `stead show <id>` - Show contract details
+- `stead verify <id>` - Re-run verification
+- YAML storage in `.stead/contracts/`
+- 64 tests passing
+- Compiles to single binary
+
+**Rationale:** Minimal viable contract engine to dogfood agent-driven development workflows.
+
+**Consequences:** Ready to use for real tasks. Next: merge PR, then expand (daemon, UI, or session format work).
+
+---
+
+## 2026-02-03: Universal Session Format Exploration
+
+**Context:** Research into AI CLI session storage (Claude Code, Codex CLI, OpenCode) revealed they all store sessions in incompatible formats. This causes vendor lock-in, fragmented visibility, and no cross-CLI workflows.
+
+**Decision:** Explore Universal Session Format as a potential stead component.
+
+**Rationale:** This directly addresses the Control Room vision — you can't have unified visibility without unified data. Also enables:
+- Session browser across all CLIs
+- Cross-CLI resume (start in Claude, continue in Codex)
+- Session forking and linking
+- A/B testing across models
+
+**Connection to NORTH_STAR:**
+- Reduces *ding* problem: know which CLI finished, restore context instantly
+- Enables Control Room: unified view of agent state across tools
+- Extends Context Generator: sessions as project memory that persists
+
+**Key finding:** Claude Code and OpenCode share `ses_*` ID convention, making conversion between them most feasible.
+
+**Consequences:** New research doc at `docs/research/ai-cli-session-formats.md`, spec at `docs/plans/universal-session-format.md`. Decision on priority vs other stead components TBD.
+
+See: `docs/plans/universal-session-format.md`
+
+---
+
+## 2026-02-03: Execution Layer Strategy
+
+**Context:** The NORTH_STAR daemon concept imagined building execution from scratch. But agents need to actually run somewhere, and existing CLIs (Claude Code, Codex, OpenCode) are complete agent runtimes tied to subscriptions. Building our own runtime means reimplementing API integration, tool execution, session management — all of which these CLIs already do.
+
+**Options considered:**
+
+| Option | Description | Effort | Trade-offs |
+|--------|-------------|--------|------------|
+| **A: Build own runtime** | Fork execution from scratch, handle APIs directly, implement all tools | Huge | Full control, but reinvents the wheel. Could be valuable long-term if CLIs become limiting. |
+| **B: Orchestrate existing CLIs** | CLIs are execution engines, stead is control plane. USF is the adapter layer. | Medium | Dependent on CLI stability, but leverages existing work. Matches "fork the concept, not the software" principle. |
+
+**Decision:** Option B — Orchestrate existing CLIs via Universal Session Format.
+
+**Rationale:**
+- CLIs already ARE the daemon. They execute tasks, manage state, handle tools.
+- Stead's value isn't execution — it's orchestration, project-scoping, contracts, visibility.
+- "Fork the concept, not the software" — don't rebuild what exists.
+- Practical: CLIs are tied to subscriptions already being paid for.
+
+**Key reframe:** The architecture becomes:
+```
+┌─────────────────────────────────────────────────┐
+│              stead (control plane)              │
+│  Contracts, orchestration, visibility, projects │
+└───────────────────────┬─────────────────────────┘
+                        │
+┌───────────────────────▼─────────────────────────┐
+│       Universal Session Format (adapter)        │
+└───────────────────────┬─────────────────────────┘
+                        │
+        ┌───────────────┼───────────────┐
+        ▼               ▼               ▼
+   Claude Code      Codex CLI       OpenCode
+   (execution)      (execution)     (execution)
+```
+
+**Preserved for future:** Option A (build own runtime) remains viable if:
+- CLIs become too limiting or unstable
+- We need deeper control over execution
+- API-direct access becomes more practical
+
+**Consequences:**
+- USF moves from "tangential" to "foundational"
+- Daemon concept reframes from "build" to "orchestrate"
+- Next step: build USF adapters for CLI integration
+
 ## Open Decisions
 
 ### Naming
