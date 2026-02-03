@@ -153,12 +153,56 @@ See: `docs/plans/universal-session-format.md`
 
 ---
 
+## 2026-02-03: Execution Layer Strategy
+
+**Context:** The NORTH_STAR daemon concept imagined building execution from scratch. But agents need to actually run somewhere, and existing CLIs (Claude Code, Codex, OpenCode) are complete agent runtimes tied to subscriptions. Building our own runtime means reimplementing API integration, tool execution, session management — all of which these CLIs already do.
+
+**Options considered:**
+
+| Option | Description | Effort | Trade-offs |
+|--------|-------------|--------|------------|
+| **A: Build own runtime** | Fork execution from scratch, handle APIs directly, implement all tools | Huge | Full control, but reinvents the wheel. Could be valuable long-term if CLIs become limiting. |
+| **B: Orchestrate existing CLIs** | CLIs are execution engines, stead is control plane. USF is the adapter layer. | Medium | Dependent on CLI stability, but leverages existing work. Matches "fork the concept, not the software" principle. |
+
+**Decision:** Option B — Orchestrate existing CLIs via Universal Session Format.
+
+**Rationale:**
+- CLIs already ARE the daemon. They execute tasks, manage state, handle tools.
+- Stead's value isn't execution — it's orchestration, project-scoping, contracts, visibility.
+- "Fork the concept, not the software" — don't rebuild what exists.
+- Practical: CLIs are tied to subscriptions already being paid for.
+
+**Key reframe:** The architecture becomes:
+```
+┌─────────────────────────────────────────────────┐
+│              stead (control plane)              │
+│  Contracts, orchestration, visibility, projects │
+└───────────────────────┬─────────────────────────┘
+                        │
+┌───────────────────────▼─────────────────────────┐
+│       Universal Session Format (adapter)        │
+└───────────────────────┬─────────────────────────┘
+                        │
+        ┌───────────────┼───────────────┐
+        ▼               ▼               ▼
+   Claude Code      Codex CLI       OpenCode
+   (execution)      (execution)     (execution)
+```
+
+**Preserved for future:** Option A (build own runtime) remains viable if:
+- CLIs become too limiting or unstable
+- We need deeper control over execution
+- API-direct access becomes more practical
+
+**Consequences:**
+- USF moves from "tangential" to "foundational"
+- Daemon concept reframes from "build" to "orchestrate"
+- Next step: build USF adapters for CLI integration
+
+---
+
 ## Open Decisions
 
 ### Naming
 - "stead" as project name — keep it?
 - What does stead stand for? (or is it just a word?)
-
-### Next Priority
-- Merge first slice PR and continue with original roadmap (Control Room)?
-- Or pivot to Universal Session Format as foundational layer for Control Room?
