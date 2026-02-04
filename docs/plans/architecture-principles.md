@@ -238,10 +238,47 @@ Not an OS in the kernel sense, but in the "environment that coordinates resource
 
 ## Build Order
 
-1. **Contract engine** — core execution model, state machine, API
-2. **Control room UI** — human supervision interface
-3. **Execution daemon** — task runner with structured output
-4. **Session proxy** — identity isolation layer
-5. **Transformation layer** — git abstraction for agents
+1. **stead-core library** — contract engine, USF adapters, SQLite storage (Rust)
+2. **stead-cli** — command-line interface using stead-core
+3. **stead-ffi** — FFI bindings for native UIs (swift-bridge/UniFFI)
+4. **Control Room (macOS)** — SwiftUI app using stead-core via FFI
+5. **Control Room (other platforms)** — later, if needed
 
 Each layer is useful independently. Each integrates with existing tools until replaced.
+
+---
+
+## Implementation Architecture (2026-02-04)
+
+**Key decision:** Monolith, not microservices. No HTTP API.
+
+Everything runs locally on one device. The Rust library (stead-core) is the brain. UIs are views into it.
+
+```
+┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+│   macOS App     │  │  Windows App    │  │   Linux App     │
+│   (SwiftUI)     │  │  (future)       │  │   (future)      │
+└────────┬────────┘  └────────┬────────┘  └────────┬────────┘
+         │                    │                    │
+         └────────── FFI (swift-bridge/UniFFI) ────┘
+                              │
+                    ┌─────────▼─────────┐
+                    │   stead-core      │
+                    │  (Rust library)   │
+                    │                   │
+                    │ • Contracts       │
+                    │ • USF Adapters    │
+                    │ • SQLite Storage  │
+                    └───────────────────┘
+                              │
+                    ┌─────────▼─────────┐
+                    │   stead-cli       │
+                    └───────────────────┘
+```
+
+**Why this architecture:**
+- No server to manage — app IS the engine
+- Native UI per platform (SwiftUI for Mac)
+- Rust library shareable across all platforms
+- SQLite for safe concurrent access
+- CLI and UI use identical logic (same library)

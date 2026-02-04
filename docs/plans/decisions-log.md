@@ -233,14 +233,127 @@ See: `docs/plans/universal-session-format.md`
 
 ---
 
+## 2026-02-04: Monolith Architecture (No HTTP API)
+
+**Context:** Phase 2 plan proposed HTTP API layer with server + CLI as separate processes. Questioned whether HTTP abstraction is needed when everything runs locally on one device with one user.
+
+**Options considered:**
+
+| Option | Description | Trade-offs |
+|--------|-------------|------------|
+| HTTP Server | CLI and Control Room talk to central server | Standard pattern, but server to manage, overhead for local data |
+| Tauri IS Stead | Control Room app contains the engine, CLI reads/writes same storage | Simpler, no server, but need coordination on storage |
+| SQLite + File Watcher | Shared SQLite, Control Room watches for changes | No server, but polling/watching |
+| Unix Sockets | Local IPC instead of HTTP | Lower overhead, but still daemon to manage |
+
+**Decision:** Option 2 — Tauri IS Stead (Monolith).
+
+**Rationale:**
+- Everything runs on one machine, one user — why serialize over HTTP?
+- No server to start/stop/manage
+- Tauri apps are Rust backend + web frontend — the backend IS the contract engine
+- Simpler architecture, fewer moving parts
+- "Is the server running?" stops being a failure mode
+
+**Architecture:**
+```
+┌─────────────────────────────────────────────────────────────┐
+│              Control Room (Tauri App = Stead)               │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │  Rust Backend (stead-core library)                     │ │
+│  │  • Contract Engine  • USF Adapters  • SQLite Storage   │ │
+│  └────────────────────────────────────────────────────────┘ │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │  Web Frontend (attention-prioritized Control Room)     │ │
+│  └────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────┘
+
+┌──────────────┐
+│    CLI       │ ──── uses same stead-core library ────▶ SQLite
+└──────────────┘
+```
+
+**Consequences:**
+- M2 (HTTP API) is removed from plan
+- Storage moves from JSONL to SQLite (better concurrent access)
+- CLI and Control Room share stead-core library
+- Simpler to reason about, fewer processes
+
+---
+
+## 2026-02-04: Native UI Strategy (Rust Library + Platform UIs)
+
+**Context:** Decided on monolith approach. Next question: what UI framework? Tauri uses web UI (HTML/CSS/JS in webview). But Mac users care about native feel.
+
+**Options considered:**
+
+| Option | Description | Trade-offs |
+|--------|-------------|------------|
+| Tauri (Web UI) | One codebase, all platforms | Never truly native feel |
+| Native per platform | SwiftUI (Mac), WinUI (Win), GTK (Linux) | Best UX, but 3 codebases |
+| Native Mac, Tauri others | SwiftUI for daily driver, web for others | Best where it matters, pragmatic |
+
+**Decision:** Rust library + Native UIs per platform (starting with SwiftUI for Mac).
+
+**Rationale:**
+- Rust compiles to a library any language can call (FFI)
+- SwiftUI is delightful for Mac apps, feels native
+- You're on Mac — optimize for your daily driver
+- Architecture enables cross-platform later without rewrite
+- "Fork the concept, not the software" — the library IS the concept, UI is just a view
+
+**Architecture:**
+```
+┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+│   macOS App     │  │  Windows App    │  │   Linux App     │
+│   (SwiftUI)     │  │  (WinUI 3)      │  │    (GTK)        │
+└────────┬────────┘  └────────┬────────┘  └────────┬────────┘
+         │                    │                    │
+         └────────── FFI (swift-bridge/UniFFI) ────┘
+                              │
+                    ┌─────────▼─────────┐
+                    │   stead-core      │
+                    │  (Rust library)   │
+                    └───────────────────┘
+                              │
+                    ┌─────────▼─────────┐
+                    │       CLI         │
+                    └───────────────────┘
+```
+
+**Tools:**
+- **swift-bridge** or **UniFFI** for Rust → Swift bindings
+- Same stead-core library used by CLI and all UIs
+
+**Consequences:**
+- Project structure splits into: stead-core (lib), stead-cli (binary), stead-ffi (bindings), macos/ (SwiftUI app)
+- Start with Mac app, add other platforms if/when needed
+- No Tauri for now (may add later for Linux/Windows)
+
+---
+
+## 2026-02-04: Storage Migration (JSONL → SQLite)
+
+**Context:** With monolith architecture, CLI and Control Room both access storage. JSONL is append-only and requires file rewrites for updates. Multiple processes accessing same file = coordination issues.
+
+**Decision:** Migrate from JSONL to SQLite.
+
+**Rationale:**
+- SQLite handles concurrent access safely (built-in locking)
+- ACID transactions for data integrity
+- Query capability (filter by status, project, date)
+- Still single-file storage (`.stead/stead.db`)
+- Battle-tested (SQLite is everywhere)
+
+**Consequences:**
+- Rewrite storage layer
+- Migration path for existing JSONL data
+- Can use `rusqlite` crate
+
+---
+
 ## Open Decisions
 
 ### Naming
 - "stead" as project name — keep it?
 - What does stead stand for? (or is it just a word?)
-
-### First Implementation Target
-
-**Decided:** See [decisions/first-slice.md](decisions/first-slice.md)
-
-**Summary:** CLI that wraps Claude Code tasks in contracts with automated verification. `stead run "task" --verify "cmd"` — no daemon, no UI, just contracts + verification + persistence.
