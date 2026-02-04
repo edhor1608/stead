@@ -5,9 +5,10 @@
 //! - list: List contracts with optional filtering
 //! - show: Display contract details
 //! - verify: Re-run contract verification
+//! - session: Browse AI CLI sessions
 
 use clap::Parser;
-use stead::cli::{Cli, Commands};
+use stead::cli::{Cli, Commands, SessionCommands};
 use stead::commands;
 
 fn main() -> anyhow::Result<()> {
@@ -26,6 +27,19 @@ fn main() -> anyhow::Result<()> {
         Commands::Verify { id } => {
             commands::verify::execute(&id, cli.json)?;
         }
+        Commands::Session { command } => match command {
+            SessionCommands::List { cli: cli_filter, project, limit } => {
+                commands::session::list_sessions(
+                    cli_filter.as_deref(),
+                    project.as_deref(),
+                    limit,
+                    cli.json,
+                )?;
+            }
+            SessionCommands::Show { id, full } => {
+                commands::session::show_session(&id, full, cli.json)?;
+            }
+        },
     }
 
     Ok(())

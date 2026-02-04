@@ -5,8 +5,10 @@
 //! - JSONL-based persistent storage
 //! - CLI argument parsing
 //! - Command implementations
+//! - Universal Session Format (USF) for cross-CLI session visibility
 
 pub mod cli;
 pub mod commands;
 pub mod schema;
 pub mod storage;
+pub mod usf;

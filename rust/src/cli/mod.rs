@@ -46,6 +46,40 @@ pub enum Commands {
         /// Contract ID
         id: String,
     },
+
+    /// Browse AI CLI sessions (Claude Code, Codex CLI, OpenCode)
+    Session {
+        #[command(subcommand)]
+        command: SessionCommands,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum SessionCommands {
+    /// List sessions from all installed AI CLIs
+    List {
+        /// Filter by CLI: claude, codex, opencode
+        #[arg(long)]
+        cli: Option<String>,
+
+        /// Filter by project path (substring match)
+        #[arg(long)]
+        project: Option<String>,
+
+        /// Maximum number of sessions to show
+        #[arg(long, default_value = "20")]
+        limit: usize,
+    },
+
+    /// Show details of a specific session
+    Show {
+        /// Session ID (e.g., claude-abc123, codex-def456)
+        id: String,
+
+        /// Show full timeline (default: summary only)
+        #[arg(long)]
+        full: bool,
+    },
 }
 
 #[cfg(test)]
@@ -118,5 +152,69 @@ mod tests {
     fn test_json_flag() {
         let cli = Cli::parse_from(["stead", "--json", "list"]);
         assert!(cli.json);
+    }
+
+    #[test]
+    fn test_session_list_command() {
+        let cli = Cli::parse_from(["stead", "session", "list"]);
+        match cli.command {
+            Commands::Session { command } => match command {
+                SessionCommands::List { cli, project, limit } => {
+                    assert_eq!(cli, None);
+                    assert_eq!(project, None);
+                    assert_eq!(limit, 20);
+                }
+                _ => panic!("Expected List subcommand"),
+            },
+            _ => panic!("Expected Session command"),
+        }
+    }
+
+    #[test]
+    fn test_session_list_with_filters() {
+        let cli = Cli::parse_from([
+            "stead", "session", "list", "--cli", "claude", "--project", "stead", "--limit", "10",
+        ]);
+        match cli.command {
+            Commands::Session { command } => match command {
+                SessionCommands::List { cli, project, limit } => {
+                    assert_eq!(cli, Some("claude".to_string()));
+                    assert_eq!(project, Some("stead".to_string()));
+                    assert_eq!(limit, 10);
+                }
+                _ => panic!("Expected List subcommand"),
+            },
+            _ => panic!("Expected Session command"),
+        }
+    }
+
+    #[test]
+    fn test_session_show_command() {
+        let cli = Cli::parse_from(["stead", "session", "show", "claude-abc123"]);
+        match cli.command {
+            Commands::Session { command } => match command {
+                SessionCommands::Show { id, full } => {
+                    assert_eq!(id, "claude-abc123");
+                    assert!(!full);
+                }
+                _ => panic!("Expected Show subcommand"),
+            },
+            _ => panic!("Expected Session command"),
+        }
+    }
+
+    #[test]
+    fn test_session_show_full() {
+        let cli = Cli::parse_from(["stead", "session", "show", "--full", "codex-def456"]);
+        match cli.command {
+            Commands::Session { command } => match command {
+                SessionCommands::Show { id, full } => {
+                    assert_eq!(id, "codex-def456");
+                    assert!(full);
+                }
+                _ => panic!("Expected Show subcommand"),
+            },
+            _ => panic!("Expected Session command"),
+        }
     }
 }
