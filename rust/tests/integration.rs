@@ -212,3 +212,56 @@ fn test_list_invalid_status() {
         .failure()
         .stderr(predicate::str::contains("Invalid status"));
 }
+
+// Session command tests
+
+#[test]
+fn test_session_list_help() {
+    stead()
+        .args(["session", "list", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("List sessions"))
+        .stdout(predicate::str::contains("--cli"))
+        .stdout(predicate::str::contains("--project"))
+        .stdout(predicate::str::contains("--limit"));
+}
+
+#[test]
+fn test_session_list_runs() {
+    // Session list should succeed whether or not AI CLIs are installed
+    // Output varies based on what's installed, so just verify it runs
+    stead()
+        .args(["session", "list"])
+        .assert()
+        .success();
+}
+
+#[test]
+fn test_session_list_json() {
+    // JSON output should return a valid JSON array
+    stead()
+        .args(["--json", "session", "list"])
+        .assert()
+        .success()
+        .stdout(predicate::str::starts_with("["));
+}
+
+#[test]
+fn test_session_show_not_found() {
+    stead()
+        .args(["session", "show", "nonexistent-session-id"])
+        .assert()
+        .success() // Command succeeds but prints error to stderr
+        .stderr(predicate::str::contains("Session not found"));
+}
+
+#[test]
+fn test_session_list_invalid_cli() {
+    stead()
+        .args(["session", "list", "--cli", "unknown"])
+        .assert()
+        .success() // Command succeeds but prints error to stderr
+        .stderr(predicate::str::contains("Unknown CLI"))
+        .stderr(predicate::str::contains("claude, codex, opencode"));
+}
