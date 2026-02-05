@@ -1,18 +1,26 @@
 //! Verify command - re-run verification for a contract
 
-use crate::storage;
+use crate::storage::{self, Storage};
 use anyhow::{bail, Context, Result};
 use std::path::Path;
 use std::process::Command;
 
 /// Execute the verify command
 pub fn execute(id: &str, json_output: bool) -> Result<()> {
-    execute_with_cwd(id, json_output, &std::env::current_dir()?)
+    let cwd = std::env::current_dir()?;
+    let db = storage::sqlite::open_default(&cwd)?;
+    execute_with_storage(id, json_output, &db)
 }
 
 /// Execute with explicit working directory (for testing)
 pub fn execute_with_cwd(id: &str, json_output: bool, cwd: &Path) -> Result<()> {
-    let contract = storage::read_contract(id, cwd)?;
+    let db = storage::sqlite::open_default(cwd)?;
+    execute_with_storage(id, json_output, &db)
+}
+
+/// Execute with a specific storage backend
+pub fn execute_with_storage(id: &str, json_output: bool, storage: &dyn Storage) -> Result<()> {
+    let contract = storage.load_contract(id)?;
 
     let mut contract = match contract {
         Some(c) => c,
@@ -36,7 +44,7 @@ pub fn execute_with_cwd(id: &str, json_output: bool, cwd: &Path) -> Result<()> {
 
     // Update contract
     contract.complete(passed, output);
-    storage::update_contract(&contract, cwd)?;
+    storage.update_contract(&contract)?;
 
     if json_output {
         println!("{}", serde_json::to_string(&contract)?);
@@ -92,36 +100,35 @@ fn run_verification(cmd: &str) -> Result<(bool, Option<String>)> {
 mod tests {
     use super::*;
     use crate::schema::{Contract, ContractStatus};
-    use crate::storage::write_contract;
-    use tempfile::TempDir;
+    use crate::storage::sqlite::SqliteStorage;
+
+    fn test_db() -> SqliteStorage {
+        SqliteStorage::open_in_memory().unwrap()
+    }
 
     #[test]
     fn test_verify_existing_contract() {
-        let tmp = TempDir::new().unwrap();
+        let db = test_db();
 
         let contract = Contract::new("test", "echo verified");
-        write_contract(&contract, tmp.path()).unwrap();
+        db.save_contract(&contract).unwrap();
 
-        execute_with_cwd(&contract.id, false, tmp.path()).unwrap();
+        execute_with_storage(&contract.id, false, &db).unwrap();
 
-        // Check contract was updated
-        let updated = storage::read_contract(&contract.id, tmp.path())
-            .unwrap()
-            .unwrap();
+        let updated = db.load_contract(&contract.id).unwrap().unwrap();
         assert_eq!(updated.status, ContractStatus::Passed);
     }
 
     #[test]
     fn test_verify_nonexistent() {
-        let tmp = TempDir::new().unwrap();
-
-        let result = execute_with_cwd("nonexistent", false, tmp.path());
+        let db = test_db();
+        let result = execute_with_storage("nonexistent", false, &db);
         assert!(result.is_err());
     }
 
     #[test]
     fn test_verify_failing_command() {
-        let tmp = TempDir::new().unwrap();
+        let db = test_db();
 
         let verify_cmd = if cfg!(target_os = "windows") {
             "exit 1"
@@ -130,14 +137,11 @@ mod tests {
         };
 
         let contract = Contract::new("test", verify_cmd);
-        write_contract(&contract, tmp.path()).unwrap();
+        db.save_contract(&contract).unwrap();
 
-        execute_with_cwd(&contract.id, false, tmp.path()).unwrap();
+        execute_with_storage(&contract.id, false, &db).unwrap();
 
-        // Check contract was marked failed
-        let updated = storage::read_contract(&contract.id, tmp.path())
-            .unwrap()
-            .unwrap();
+        let updated = db.load_contract(&contract.id).unwrap().unwrap();
         assert_eq!(updated.status, ContractStatus::Failed);
     }
 }

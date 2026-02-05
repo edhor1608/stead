@@ -1,13 +1,15 @@
 //! List command - display contracts with optional filtering
 
 use crate::schema::ContractStatus;
-use crate::storage;
+use crate::storage::{self, Storage};
 use anyhow::{bail, Result};
 use std::path::Path;
 
 /// Execute the list command
 pub fn execute(status_filter: Option<&str>, json_output: bool) -> Result<()> {
-    execute_with_cwd(status_filter, json_output, &std::env::current_dir()?)
+    let cwd = std::env::current_dir()?;
+    let db = storage::sqlite::open_default(&cwd)?;
+    execute_with_storage(status_filter, json_output, &db)
 }
 
 /// Execute with explicit working directory (for testing)
@@ -16,7 +18,17 @@ pub fn execute_with_cwd(
     json_output: bool,
     cwd: &Path,
 ) -> Result<()> {
-    let mut contracts = storage::list_contracts(cwd)?;
+    let db = storage::sqlite::open_default(cwd)?;
+    execute_with_storage(status_filter, json_output, &db)
+}
+
+/// Execute with a specific storage backend
+pub fn execute_with_storage(
+    status_filter: Option<&str>,
+    json_output: bool,
+    storage: &dyn Storage,
+) -> Result<()> {
+    let mut contracts = storage.load_all_contracts()?;
 
     // Filter by status if provided
     if let Some(status_str) = status_filter {
@@ -89,8 +101,11 @@ fn format_date(dt: &chrono::DateTime<chrono::Utc>) -> String {
 mod tests {
     use super::*;
     use crate::schema::Contract;
-    use crate::storage::write_contract;
-    use tempfile::TempDir;
+    use crate::storage::sqlite::SqliteStorage;
+
+    fn test_db() -> SqliteStorage {
+        SqliteStorage::open_in_memory().unwrap()
+    }
 
     #[test]
     fn test_parse_status() {
@@ -119,49 +134,48 @@ mod tests {
 
     #[test]
     fn test_list_empty() {
-        let tmp = TempDir::new().unwrap();
-        execute_with_cwd(None, false, tmp.path()).unwrap();
+        let db = test_db();
+        execute_with_storage(None, false, &db).unwrap();
     }
 
     #[test]
     fn test_list_with_contracts() {
-        let tmp = TempDir::new().unwrap();
+        let db = test_db();
 
         let c1 = Contract::new("task 1", "verify 1");
-        write_contract(&c1, tmp.path()).unwrap();
+        db.save_contract(&c1).unwrap();
 
         let c2 = Contract::new("task 2", "verify 2");
-        write_contract(&c2, tmp.path()).unwrap();
+        db.save_contract(&c2).unwrap();
 
-        execute_with_cwd(None, false, tmp.path()).unwrap();
+        execute_with_storage(None, false, &db).unwrap();
     }
 
     #[test]
     fn test_list_json() {
-        let tmp = TempDir::new().unwrap();
+        let db = test_db();
 
         let c = Contract::new("task", "verify");
-        write_contract(&c, tmp.path()).unwrap();
+        db.save_contract(&c).unwrap();
 
-        execute_with_cwd(None, true, tmp.path()).unwrap();
+        execute_with_storage(None, true, &db).unwrap();
     }
 
     #[test]
     fn test_list_filter_by_status() {
-        let tmp = TempDir::new().unwrap();
+        let db = test_db();
 
         let c = Contract::new("task", "verify");
-        write_contract(&c, tmp.path()).unwrap();
+        db.save_contract(&c).unwrap();
 
         // Should work with valid status
-        execute_with_cwd(Some("pending"), false, tmp.path()).unwrap();
+        execute_with_storage(Some("pending"), false, &db).unwrap();
     }
 
     #[test]
     fn test_list_invalid_status() {
-        let tmp = TempDir::new().unwrap();
-
-        let result = execute_with_cwd(Some("invalid"), false, tmp.path());
+        let db = test_db();
+        let result = execute_with_storage(Some("invalid"), false, &db);
         assert!(result.is_err());
     }
 }

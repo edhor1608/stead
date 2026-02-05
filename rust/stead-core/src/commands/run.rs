@@ -1,14 +1,16 @@
 //! Run command - create and execute a contract
 
 use crate::schema::Contract;
-use crate::storage;
+use crate::storage::{self, Storage};
 use anyhow::{Context, Result};
 use std::path::Path;
 use std::process::Command;
 
 /// Execute the run command
 pub fn execute(task: &str, verify_cmd: &str, json_output: bool) -> Result<()> {
-    execute_with_cwd(task, verify_cmd, json_output, &std::env::current_dir()?)
+    let cwd = std::env::current_dir()?;
+    let db = storage::sqlite::open_default(&cwd)?;
+    execute_with_storage(task, verify_cmd, json_output, &db)
 }
 
 /// Execute with explicit working directory (for testing)
@@ -18,9 +20,20 @@ pub fn execute_with_cwd(
     json_output: bool,
     cwd: &Path,
 ) -> Result<()> {
+    let db = storage::sqlite::open_default(cwd)?;
+    execute_with_storage(task, verify_cmd, json_output, &db)
+}
+
+/// Execute with a specific storage backend
+pub fn execute_with_storage(
+    task: &str,
+    verify_cmd: &str,
+    json_output: bool,
+    storage: &dyn Storage,
+) -> Result<()> {
     // Create contract
     let mut contract = Contract::new(task, verify_cmd);
-    storage::write_contract(&contract, cwd)?;
+    storage.save_contract(&contract)?;
 
     if !json_output {
         println!("Contract created: {}", contract.id);
@@ -29,7 +42,7 @@ pub fn execute_with_cwd(
 
     // Mark as running
     contract.start();
-    storage::update_contract(&contract, cwd)?;
+    storage.update_contract(&contract)?;
 
     // Execute claude with the task
     let claude_result = spawn_claude(task);
@@ -59,7 +72,7 @@ pub fn execute_with_cwd(
 
     // Complete the contract
     contract.complete(passed, combined_output);
-    storage::update_contract(&contract, cwd)?;
+    storage.update_contract(&contract)?;
 
     if json_output {
         println!("{}", serde_json::to_string(&contract)?);

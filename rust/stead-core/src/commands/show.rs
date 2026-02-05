@@ -1,17 +1,25 @@
 //! Show command - display contract details
 
-use crate::storage;
+use crate::storage::{self, Storage};
 use anyhow::{bail, Result};
 use std::path::Path;
 
 /// Execute the show command
 pub fn execute(id: &str, json_output: bool) -> Result<()> {
-    execute_with_cwd(id, json_output, &std::env::current_dir()?)
+    let cwd = std::env::current_dir()?;
+    let db = storage::sqlite::open_default(&cwd)?;
+    execute_with_storage(id, json_output, &db)
 }
 
 /// Execute with explicit working directory (for testing)
 pub fn execute_with_cwd(id: &str, json_output: bool, cwd: &Path) -> Result<()> {
-    let contract = storage::read_contract(id, cwd)?;
+    let db = storage::sqlite::open_default(cwd)?;
+    execute_with_storage(id, json_output, &db)
+}
+
+/// Execute with a specific storage backend
+pub fn execute_with_storage(id: &str, json_output: bool, storage: &dyn Storage) -> Result<()> {
+    let contract = storage.load_contract(id)?;
 
     match contract {
         Some(c) => {
@@ -51,36 +59,36 @@ pub fn execute_with_cwd(id: &str, json_output: bool, cwd: &Path) -> Result<()> {
 mod tests {
     use super::*;
     use crate::schema::Contract;
-    use crate::storage::write_contract;
-    use tempfile::TempDir;
+    use crate::storage::sqlite::SqliteStorage;
+
+    fn test_db() -> SqliteStorage {
+        SqliteStorage::open_in_memory().unwrap()
+    }
 
     #[test]
     fn test_show_existing_contract() {
-        let tmp = TempDir::new().unwrap();
+        let db = test_db();
 
         let contract = Contract::new("test task", "echo ok");
-        write_contract(&contract, tmp.path()).unwrap();
+        db.save_contract(&contract).unwrap();
 
-        // Should not error
-        execute_with_cwd(&contract.id, false, tmp.path()).unwrap();
+        execute_with_storage(&contract.id, false, &db).unwrap();
     }
 
     #[test]
     fn test_show_nonexistent_contract() {
-        let tmp = TempDir::new().unwrap();
-
-        let result = execute_with_cwd("nonexistent", false, tmp.path());
+        let db = test_db();
+        let result = execute_with_storage("nonexistent", false, &db);
         assert!(result.is_err());
     }
 
     #[test]
     fn test_show_json_output() {
-        let tmp = TempDir::new().unwrap();
+        let db = test_db();
 
         let contract = Contract::new("test task", "echo ok");
-        write_contract(&contract, tmp.path()).unwrap();
+        db.save_contract(&contract).unwrap();
 
-        // JSON mode should not error
-        execute_with_cwd(&contract.id, true, tmp.path()).unwrap();
+        execute_with_storage(&contract.id, true, &db).unwrap();
     }
 }
