@@ -9,7 +9,6 @@ use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
-const STEAD_DIR: &str = ".stead";
 const CONTRACTS_FILE: &str = "contracts.jsonl";
 
 /// Storage-related errors
@@ -30,12 +29,12 @@ pub enum StorageError {
 
 /// Get the path to the contracts file
 pub fn get_contracts_path(cwd: &Path) -> PathBuf {
-    cwd.join(STEAD_DIR).join(CONTRACTS_FILE)
+    cwd.join(super::STEAD_DIR).join(CONTRACTS_FILE)
 }
 
 /// Get the .stead directory path
 pub fn get_stead_dir(cwd: &Path) -> PathBuf {
-    cwd.join(STEAD_DIR)
+    cwd.join(super::STEAD_DIR)
 }
 
 /// Ensure the .stead directory exists
@@ -188,6 +187,46 @@ pub fn list_contracts(cwd: &Path) -> Result<Vec<Contract>, StorageError> {
 /// Check if stead is initialized in this directory
 pub fn is_initialized(cwd: &Path) -> bool {
     get_stead_dir(cwd).is_dir()
+}
+
+/// JSONL storage backend
+pub struct JsonlStorage {
+    cwd: PathBuf,
+}
+
+impl JsonlStorage {
+    pub fn new(cwd: &Path) -> Self {
+        Self {
+            cwd: cwd.to_path_buf(),
+        }
+    }
+}
+
+impl super::Storage for JsonlStorage {
+    fn save_contract(&self, contract: &Contract) -> Result<(), StorageError> {
+        write_contract(contract, &self.cwd)
+    }
+
+    fn load_contract(&self, id: &str) -> Result<Option<Contract>, StorageError> {
+        read_contract(id, &self.cwd)
+    }
+
+    fn load_all_contracts(&self) -> Result<Vec<Contract>, StorageError> {
+        list_contracts(&self.cwd)
+    }
+
+    fn update_contract(&self, contract: &Contract) -> Result<(), StorageError> {
+        update_contract(contract, &self.cwd)
+    }
+
+    fn filter_by_status(&self, status: &str) -> Result<Vec<Contract>, StorageError> {
+        let contracts = list_contracts(&self.cwd)?;
+        let status_lower = status.to_lowercase();
+        Ok(contracts
+            .into_iter()
+            .filter(|c| c.status.to_string() == status_lower)
+            .collect())
+    }
 }
 
 #[cfg(test)]

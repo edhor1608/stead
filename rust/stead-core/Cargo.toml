@@ -21,8 +21,8 @@ chrono = { version = "0.4", features = ["serde"] }
 thiserror = "2"
 anyhow = "1"
 
-# Async runtime (for future HTTP API)
-tokio = { version = "1", features = ["full"] }
+# SQLite storage
+rusqlite = { version = "0.31", features = ["bundled"] }
 
 # Home directory expansion for USF adapters
 dirs = "5"
