@@ -1,0 +1,19 @@
+[package]
+name = "stead-ffi"
+version = "0.2.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "staticlib"]
+
+[dependencies]
+stead-core = { path = "../stead-core" }
+uniffi = { version = "0.28", features = ["cli"] }
+thiserror = "2"
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "src/uniffi-bindgen.rs"
+
+[build-dependencies]
+uniffi = { version = "0.28", features = ["build"] }
