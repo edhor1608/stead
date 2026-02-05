@@ -661,15 +661,26 @@ dependencies = [
 ]
 
 [[package]]
-name = "stead"
+name = "stead-cli"
 version = "0.2.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
+ "clap",
+ "predicates",
+ "serde_json",
+ "stead-core",
+ "tempfile",
+]
+
+[[package]]
+name = "stead-core"
+version = "0.2.0"
+dependencies = [
+ "anyhow",
  "chrono",
  "clap",
  "dirs",
- "predicates",
  "serde",
  "serde_json",
  "tempfile",
