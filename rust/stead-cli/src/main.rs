@@ -8,8 +8,8 @@
 //! - session: Browse AI CLI sessions
 
 use clap::Parser;
-use stead::cli::{Cli, Commands, SessionCommands};
-use stead::commands;
+use stead_core::cli::{Cli, Commands, SessionCommands};
+use stead_core::commands;
 
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
