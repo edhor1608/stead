@@ -1,0 +1,51 @@
+name: Stead
+options:
+  bundleIdPrefix: com.stead
+  deploymentTarget:
+    macOS: "14.0"
+  xcodeVersion: "16.0"
+  minimumXcodeGenVersion: "2.40"
+
+targets:
+  Stead:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources/Stead
+      - path: Sources/SteadFFI/stead_ffi.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.stead.app
+        PRODUCT_NAME: Stead
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: 1
+        SWIFT_VERSION: "5.9"
+        MACOSX_DEPLOYMENT_TARGET: "14.0"
+        INFOPLIST_FILE: Resources/Info.plist
+        HEADER_SEARCH_PATHS:
+          - $(inherited)
+          - $(SRCROOT)/Sources/SteadFFI/include
+        LIBRARY_SEARCH_PATHS:
+          - $(inherited)
+          - $(SRCROOT)/../../rust/target/release
+        OTHER_LDFLAGS:
+          - $(inherited)
+          - -lstead_ffi
+        IMPORT_PATHS:
+          - $(SRCROOT)/Sources/SteadFFI/include
+        SWIFT_INCLUDE_PATHS:
+          - $(SRCROOT)/Sources/SteadFFI/include
+      configs:
+        Debug:
+          LIBRARY_SEARCH_PATHS:
+            - $(inherited)
+            - $(SRCROOT)/../../rust/target/debug
+            - $(SRCROOT)/../../rust/target/release
+        Release:
+          LIBRARY_SEARCH_PATHS:
+            - $(inherited)
+            - $(SRCROOT)/../../rust/target/release
+    entitlements:
+      path: Resources/Stead.entitlements
+      properties:
+        com.apple.security.app-sandbox: false

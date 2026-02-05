@@ -1,0 +1,4 @@
+*.xcodeproj
+SteadFFI.xcframework
+DerivedData/
+.build/
