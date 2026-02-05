@@ -2,7 +2,7 @@
 
 use crate::schema::ContractStatus;
 use crate::storage::{self, Storage};
-use anyhow::{bail, Result};
+use anyhow::Result;
 use std::path::Path;
 
 /// Execute the list command
@@ -69,16 +69,12 @@ pub fn execute_with_storage(
 
 /// Parse status string to enum
 fn parse_status(s: &str) -> Result<ContractStatus> {
-    match s.to_lowercase().as_str() {
-        "pending" => Ok(ContractStatus::Pending),
-        "running" => Ok(ContractStatus::Running),
-        "passed" => Ok(ContractStatus::Passed),
-        "failed" => Ok(ContractStatus::Failed),
-        _ => bail!(
-            "Invalid status '{}'. Valid values: pending, running, passed, failed",
+    s.to_lowercase()
+        .parse::<ContractStatus>()
+        .map_err(|_| anyhow::anyhow!(
+            "Invalid status '{}'. Valid values: pending, ready, claimed, executing, verifying, completed, failed, rollingback, rolledback, cancelled",
             s
-        ),
-    }
+        ))
 }
 
 /// Truncate string with ellipsis (UTF-8 safe)
@@ -111,7 +107,7 @@ mod tests {
     fn test_parse_status() {
         assert_eq!(parse_status("pending").unwrap(), ContractStatus::Pending);
         assert_eq!(parse_status("PENDING").unwrap(), ContractStatus::Pending);
-        assert_eq!(parse_status("passed").unwrap(), ContractStatus::Passed);
+        assert_eq!(parse_status("passed").unwrap(), ContractStatus::Completed);
         assert!(parse_status("invalid").is_err());
     }
 

@@ -32,8 +32,19 @@ pub fn execute_with_storage(id: &str, json_output: bool, storage: &dyn Storage) 
                 println!("Verification: {}", c.verification);
                 println!("Created: {}", c.created_at.format("%Y-%m-%d %H:%M:%S"));
 
+                if let Some(ref owner) = c.owner {
+                    println!("Owner: {}", owner);
+                }
+
                 if let Some(completed) = c.completed_at {
                     println!("Completed: {}", completed.format("%Y-%m-%d %H:%M:%S"));
+                }
+
+                if !c.blocked_by.is_empty() {
+                    println!("Blocked by: {}", c.blocked_by.join(", "));
+                }
+                if !c.blocks.is_empty() {
+                    println!("Blocks: {}", c.blocks.join(", "));
                 }
 
                 if let Some(ref output) = c.output {

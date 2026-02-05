@@ -12,18 +12,30 @@ use std::path::Path;
 #[derive(uniffi::Enum)]
 pub enum FfiContractStatus {
     Pending,
-    Running,
-    Passed,
+    Ready,
+    Claimed,
+    Executing,
+    Verifying,
+    Completed,
     Failed,
+    RollingBack,
+    RolledBack,
+    Cancelled,
 }
 
 impl From<stead_core::schema::ContractStatus> for FfiContractStatus {
     fn from(s: stead_core::schema::ContractStatus) -> Self {
         match s {
             stead_core::schema::ContractStatus::Pending => Self::Pending,
-            stead_core::schema::ContractStatus::Running => Self::Running,
-            stead_core::schema::ContractStatus::Passed => Self::Passed,
+            stead_core::schema::ContractStatus::Ready => Self::Ready,
+            stead_core::schema::ContractStatus::Claimed => Self::Claimed,
+            stead_core::schema::ContractStatus::Executing => Self::Executing,
+            stead_core::schema::ContractStatus::Verifying => Self::Verifying,
+            stead_core::schema::ContractStatus::Completed => Self::Completed,
             stead_core::schema::ContractStatus::Failed => Self::Failed,
+            stead_core::schema::ContractStatus::RollingBack => Self::RollingBack,
+            stead_core::schema::ContractStatus::RolledBack => Self::RolledBack,
+            stead_core::schema::ContractStatus::Cancelled => Self::Cancelled,
         }
     }
 }
@@ -58,6 +70,9 @@ pub struct FfiContract {
     pub created_at: String,
     pub completed_at: Option<String>,
     pub output: Option<String>,
+    pub owner: Option<String>,
+    pub blocked_by: Vec<String>,
+    pub blocks: Vec<String>,
 }
 
 impl From<stead_core::schema::Contract> for FfiContract {
@@ -70,6 +85,9 @@ impl From<stead_core::schema::Contract> for FfiContract {
             created_at: c.created_at.to_rfc3339(),
             completed_at: c.completed_at.map(|dt| dt.to_rfc3339()),
             output: c.output,
+            owner: c.owner,
+            blocked_by: c.blocked_by,
+            blocks: c.blocks,
         }
     }
 }

@@ -28,9 +28,19 @@ pub enum Commands {
         verify: String,
     },
 
+    /// Create a contract without executing it
+    Create {
+        /// The task description for the agent
+        task: String,
+
+        /// Shell command to verify task completion (exit 0 = pass)
+        #[arg(long)]
+        verify: String,
+    },
+
     /// List contracts with optional status filter
     List {
-        /// Filter by status: pending, running, passed, failed
+        /// Filter by status: pending, ready, claimed, executing, verifying, completed, failed, cancelled
         #[arg(long)]
         status: Option<String>,
     },
@@ -43,6 +53,22 @@ pub enum Commands {
 
     /// Re-run verification for a contract
     Verify {
+        /// Contract ID
+        id: String,
+    },
+
+    /// Claim a contract for execution
+    Claim {
+        /// Contract ID
+        id: String,
+
+        /// Owner name (agent or user)
+        #[arg(long, default_value = "stead-cli")]
+        owner: String,
+    },
+
+    /// Cancel a contract
+    Cancel {
         /// Contract ID
         id: String,
     },

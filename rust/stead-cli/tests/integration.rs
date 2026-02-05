@@ -59,7 +59,7 @@ fn test_run_and_list() {
         .assert()
         .success()
         .stdout(predicate::str::contains("test task"))
-        .stdout(predicate::str::contains("passed"));
+        .stdout(predicate::str::contains("completed"));
 }
 
 #[test]
@@ -104,7 +104,7 @@ fn test_show_contract() {
         .assert()
         .success()
         .stdout(predicate::str::contains(&format!("Contract: {}", id)))
-        .stdout(predicate::str::contains("Status: passed"));
+        .stdout(predicate::str::contains("Status: completed"));
 }
 
 #[test]
@@ -160,9 +160,9 @@ fn test_list_filter_by_status() {
         .assert()
         .success();
 
-    // Filter by passed - should only show passing
+    // Filter by completed - should only show passing
     stead()
-        .args(["list", "--status", "passed"])
+        .args(["list", "--status", "completed"])
         .current_dir(tmp.path())
         .assert()
         .success()
@@ -190,7 +190,7 @@ fn test_json_output() {
         .assert()
         .success()
         .stdout(predicate::str::contains(r#""task":"test task""#))
-        .stdout(predicate::str::contains(r#""status":"passed""#));
+        .stdout(predicate::str::contains(r#""status":"completed""#));
 
     // List with --json
     stead()

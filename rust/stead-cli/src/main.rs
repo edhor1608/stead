@@ -18,6 +18,9 @@ fn main() -> anyhow::Result<()> {
         Commands::Run { task, verify } => {
             commands::run::execute(&task, &verify, cli.json)?;
         }
+        Commands::Create { task, verify } => {
+            commands::create::execute(&task, &verify, cli.json)?;
+        }
         Commands::List { status } => {
             commands::list::execute(status.as_deref(), cli.json)?;
         }
@@ -26,6 +29,12 @@ fn main() -> anyhow::Result<()> {
         }
         Commands::Verify { id } => {
             commands::verify::execute(&id, cli.json)?;
+        }
+        Commands::Claim { id, owner } => {
+            commands::claim::execute(&id, &owner, cli.json)?;
+        }
+        Commands::Cancel { id } => {
+            commands::cancel::execute(&id, cli.json)?;
         }
         Commands::Session { command } => match command {
             SessionCommands::List { cli: cli_filter, project, limit } => {

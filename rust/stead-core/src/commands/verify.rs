@@ -116,7 +116,7 @@ mod tests {
         execute_with_storage(&contract.id, false, &db).unwrap();
 
         let updated = db.load_contract(&contract.id).unwrap().unwrap();
-        assert_eq!(updated.status, ContractStatus::Passed);
+        assert_eq!(updated.status, ContractStatus::Completed);
     }
 
     #[test]

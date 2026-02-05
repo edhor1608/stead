@@ -50,14 +50,29 @@ impl SqliteStorage {
                     output TEXT,
                     created_at TEXT NOT NULL,
                     completed_at TEXT,
-                    project_path TEXT NOT NULL DEFAULT ''
+                    project_path TEXT NOT NULL DEFAULT '',
+                    owner TEXT,
+                    blocked_by TEXT NOT NULL DEFAULT '[]',
+                    blocks TEXT NOT NULL DEFAULT '[]'
                 );
                 CREATE INDEX IF NOT EXISTS idx_contracts_status ON contracts(status);
-                CREATE INDEX IF NOT EXISTS idx_contracts_project_path ON contracts(project_path);",
+                CREATE INDEX IF NOT EXISTS idx_contracts_project_path ON contracts(project_path);
+                CREATE INDEX IF NOT EXISTS idx_contracts_owner ON contracts(owner);",
             )
             .map_err(|e| {
                 StorageError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
             })?;
+
+        // Migration: add new columns if they don't exist (for existing DBs)
+        for col in ["owner TEXT", "blocked_by TEXT NOT NULL DEFAULT '[]'", "blocks TEXT NOT NULL DEFAULT '[]'"] {
+            let col_name = col.split_whitespace().next().unwrap();
+            let _ = self.conn.execute_batch(
+                &format!("ALTER TABLE contracts ADD COLUMN {}", col),
+            );
+            // Ignore error — column already exists
+            let _ = col_name; // suppress unused warning
+        }
+
         Ok(())
     }
 
@@ -71,8 +86,8 @@ impl super::Storage for SqliteStorage {
     fn save_contract(&self, contract: &Contract) -> Result<(), StorageError> {
         self.conn
             .execute(
-                "INSERT INTO contracts (id, task, verify_cmd, status, output, created_at, completed_at, project_path)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                "INSERT INTO contracts (id, task, verify_cmd, status, output, created_at, completed_at, project_path, owner, blocked_by, blocks)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
                 params![
                     contract.id,
                     contract.task,
@@ -82,6 +97,9 @@ impl super::Storage for SqliteStorage {
                     contract.created_at.to_rfc3339(),
                     contract.completed_at.map(|dt| dt.to_rfc3339()),
                     "",
+                    contract.owner,
+                    serde_json::to_string(&contract.blocked_by).unwrap_or_default(),
+                    serde_json::to_string(&contract.blocks).unwrap_or_default(),
                 ],
             )
             .map_err(|e| {
@@ -93,7 +111,7 @@ impl super::Storage for SqliteStorage {
     fn load_contract(&self, id: &str) -> Result<Option<Contract>, StorageError> {
         let mut stmt = self
             .conn
-            .prepare("SELECT id, task, verify_cmd, status, output, created_at, completed_at FROM contracts WHERE id = ?1")
+            .prepare("SELECT id, task, verify_cmd, status, output, created_at, completed_at, owner, blocked_by, blocks FROM contracts WHERE id = ?1")
             .map_err(|e| StorageError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))?;
 
         let result = stmt
@@ -109,7 +127,7 @@ impl super::Storage for SqliteStorage {
     fn load_all_contracts(&self) -> Result<Vec<Contract>, StorageError> {
         let mut stmt = self
             .conn
-            .prepare("SELECT id, task, verify_cmd, status, output, created_at, completed_at FROM contracts ORDER BY created_at DESC")
+            .prepare("SELECT id, task, verify_cmd, status, output, created_at, completed_at, owner, blocked_by, blocks FROM contracts ORDER BY created_at DESC")
             .map_err(|e| StorageError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))?;
 
         let contracts = stmt
@@ -129,13 +147,16 @@ impl super::Storage for SqliteStorage {
         let rows = self
             .conn
             .execute(
-                "UPDATE contracts SET task = ?1, verify_cmd = ?2, status = ?3, output = ?4, completed_at = ?5 WHERE id = ?6",
+                "UPDATE contracts SET task = ?1, verify_cmd = ?2, status = ?3, output = ?4, completed_at = ?5, owner = ?6, blocked_by = ?7, blocks = ?8 WHERE id = ?9",
                 params![
                     contract.task,
                     contract.verification,
                     contract.status.to_string(),
                     contract.output,
                     contract.completed_at.map(|dt| dt.to_rfc3339()),
+                    contract.owner,
+                    serde_json::to_string(&contract.blocked_by).unwrap_or_default(),
+                    serde_json::to_string(&contract.blocks).unwrap_or_default(),
                     contract.id,
                 ],
             )
@@ -152,7 +173,7 @@ impl super::Storage for SqliteStorage {
     fn filter_by_status(&self, status: &str) -> Result<Vec<Contract>, StorageError> {
         let mut stmt = self
             .conn
-            .prepare("SELECT id, task, verify_cmd, status, output, created_at, completed_at FROM contracts WHERE status = ?1 ORDER BY created_at DESC")
+            .prepare("SELECT id, task, verify_cmd, status, output, created_at, completed_at, owner, blocked_by, blocks FROM contracts WHERE status = ?1 ORDER BY created_at DESC")
             .map_err(|e| StorageError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))?;
 
         let contracts = stmt
@@ -178,14 +199,11 @@ fn row_to_contract(row: &rusqlite::Row) -> rusqlite::Result<Contract> {
     let output: Option<String> = row.get(4)?;
     let created_at_str: String = row.get(5)?;
     let completed_at_str: Option<String> = row.get(6)?;
+    let owner: Option<String> = row.get(7)?;
+    let blocked_by_str: String = row.get::<_, Option<String>>(8)?.unwrap_or_else(|| "[]".to_string());
+    let blocks_str: String = row.get::<_, Option<String>>(9)?.unwrap_or_else(|| "[]".to_string());
 
-    let status = match status_str.as_str() {
-        "pending" => ContractStatus::Pending,
-        "running" => ContractStatus::Running,
-        "passed" => ContractStatus::Passed,
-        "failed" => ContractStatus::Failed,
-        _ => ContractStatus::Pending,
-    };
+    let status = status_str.parse::<ContractStatus>().unwrap_or(ContractStatus::Pending);
 
     let created_at = DateTime::parse_from_rfc3339(&created_at_str)
         .map(|dt| dt.with_timezone(&Utc))
@@ -197,6 +215,9 @@ fn row_to_contract(row: &rusqlite::Row) -> rusqlite::Result<Contract> {
             .ok()
     });
 
+    let blocked_by: Vec<String> = serde_json::from_str(&blocked_by_str).unwrap_or_default();
+    let blocks: Vec<String> = serde_json::from_str(&blocks_str).unwrap_or_default();
+
     Ok(Contract {
         id,
         task,
@@ -205,6 +226,9 @@ fn row_to_contract(row: &rusqlite::Row) -> rusqlite::Result<Contract> {
         created_at,
         completed_at,
         output,
+        owner,
+        blocked_by,
+        blocks,
     })
 }
 
@@ -316,13 +340,11 @@ mod tests {
         let mut contract = Contract::new("task", "verify");
         db.save_contract(&contract).unwrap();
 
-        contract.status = ContractStatus::Passed;
-        contract.output = Some("All good".to_string());
         contract.complete(true, Some("All good".to_string()));
         db.update_contract(&contract).unwrap();
 
         let loaded = db.load_contract(&contract.id).unwrap().unwrap();
-        assert_eq!(loaded.status, ContractStatus::Passed);
+        assert_eq!(loaded.status, ContractStatus::Completed);
         assert_eq!(loaded.output, Some("All good".to_string()));
         assert!(loaded.completed_at.is_some());
     }
@@ -343,7 +365,7 @@ mod tests {
         let c1 = Contract::new("pending task", "verify");
         db.save_contract(&c1).unwrap();
 
-        let mut c2 = Contract::new("passed task", "verify");
+        let mut c2 = Contract::new("completed task", "verify");
         c2.complete(true, None);
         db.save_contract(&c2).unwrap();
 
@@ -351,9 +373,9 @@ mod tests {
         assert_eq!(pending.len(), 1);
         assert_eq!(pending[0].task, "pending task");
 
-        let passed = db.filter_by_status("passed").unwrap();
-        assert_eq!(passed.len(), 1);
-        assert_eq!(passed[0].task, "passed task");
+        let completed = db.filter_by_status("completed").unwrap();
+        assert_eq!(completed.len(), 1);
+        assert_eq!(completed[0].task, "completed task");
     }
 
     #[test]

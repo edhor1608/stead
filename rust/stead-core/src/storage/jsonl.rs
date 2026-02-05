@@ -287,12 +287,12 @@ mod tests {
         write_contract(&contract, tmp.path()).unwrap();
 
         // Update status
-        contract.status = ContractStatus::Passed;
+        contract.status = ContractStatus::Completed;
         contract.output = Some("Success!".to_string());
         update_contract(&contract, tmp.path()).unwrap();
 
         let loaded = read_contract(&contract.id, tmp.path()).unwrap().unwrap();
-        assert_eq!(loaded.status, ContractStatus::Passed);
+        assert_eq!(loaded.status, ContractStatus::Completed);
         assert_eq!(loaded.output, Some("Success!".to_string()));
     }
 

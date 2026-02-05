@@ -31,18 +31,23 @@ pub fn execute_with_storage(
     json_output: bool,
     storage: &dyn Storage,
 ) -> Result<()> {
-    // Create contract
+    // Create contract (Pending)
     let mut contract = Contract::new(task, verify_cmd);
     storage.save_contract(&contract)?;
 
     if !json_output {
         println!("Contract created: {}", contract.id);
-        println!("Executing task...");
     }
 
-    // Mark as running
-    contract.start();
+    // Pending → Ready → Claimed → Executing
+    contract.mark_ready().expect("pending -> ready");
+    contract.claim("stead-cli").expect("ready -> claimed");
+    contract.start().expect("claimed -> executing");
     storage.update_contract(&contract)?;
+
+    if !json_output {
+        println!("Executing task...");
+    }
 
     // Execute claude with the task
     let claude_result = spawn_claude(task);
@@ -55,6 +60,10 @@ pub fn execute_with_storage(
             Some(format!("[Claude failed: {}]", e))
         }
     };
+
+    // Executing → Verifying
+    contract.begin_verify().expect("executing -> verifying");
+    storage.update_contract(&contract)?;
 
     if !json_output {
         println!("Running verification...");
@@ -70,7 +79,7 @@ pub fn execute_with_storage(
         (None, out) => out,
     };
 
-    // Complete the contract
+    // Verifying → Completed/Failed
     contract.complete(passed, combined_output);
     storage.update_contract(&contract)?;
 
