@@ -22,7 +22,10 @@ pub fn list_sessions(
             "codex" => Some(CliType::Codex),
             "opencode" => Some(CliType::OpenCode),
             _ => {
-                eprintln!("Unknown CLI: {}. Valid options: claude, codex, opencode", cli);
+                eprintln!(
+                    "Unknown CLI: {}. Valid options: claude, codex, opencode",
+                    cli
+                );
                 return Ok(());
             }
         };
@@ -75,8 +78,14 @@ fn print_session_list(sessions: &[SessionSummary]) {
     }
 
     // Group by CLI
-    let claude_sessions: Vec<_> = sessions.iter().filter(|s| s.cli == CliType::Claude).collect();
-    let codex_sessions: Vec<_> = sessions.iter().filter(|s| s.cli == CliType::Codex).collect();
+    let claude_sessions: Vec<_> = sessions
+        .iter()
+        .filter(|s| s.cli == CliType::Claude)
+        .collect();
+    let codex_sessions: Vec<_> = sessions
+        .iter()
+        .filter(|s| s.cli == CliType::Codex)
+        .collect();
     let opencode_sessions: Vec<_> = sessions
         .iter()
         .filter(|s| s.cli == CliType::OpenCode)
@@ -115,7 +124,7 @@ fn print_session_row(s: &SessionSummary) {
     let project = s
         .project_path
         .split('/')
-        .last()
+        .next_back()
         .unwrap_or(&s.project_path);
     let branch = s
         .git_branch
@@ -152,11 +161,11 @@ fn print_session_detail(session: &UniversalSession, full: bool) {
             println!("Commit:   {}", &commit[..8.min(commit.len())]);
         }
     }
-    println!("Model:    {}/{}", session.model.provider, session.model.model);
     println!(
-        "Created:  {}",
-        format_datetime(session.metadata.created)
+        "Model:    {}/{}",
+        session.model.provider, session.model.model
     );
+    println!("Created:  {}", format_datetime(session.metadata.created));
     println!(
         "Modified: {}",
         format_datetime(session.metadata.last_modified)
@@ -190,18 +199,12 @@ fn print_session_detail(session: &UniversalSession, full: bool) {
 fn print_timeline_entry(entry: &TimelineEntry) {
     match entry {
         TimelineEntry::User(msg) => {
-            println!(
-                "[{}] USER:",
-                format_time(msg.timestamp)
-            );
+            println!("[{}] USER:", format_time(msg.timestamp));
             println!("{}", indent(&msg.content, "  "));
             println!();
         }
         TimelineEntry::Assistant(msg) => {
-            println!(
-                "[{}] ASSISTANT:",
-                format_time(msg.timestamp)
-            );
+            println!("[{}] ASSISTANT:", format_time(msg.timestamp));
             if let Some(thinking) = &msg.thinking {
                 println!("  <thinking>");
                 println!("{}", indent(thinking, "    "));
@@ -213,14 +216,9 @@ fn print_timeline_entry(entry: &TimelineEntry) {
         TimelineEntry::ToolCall(call) => {
             let tool_name = call
                 .original_tool
-                .as_ref()
-                .map(|s| s.as_str())
+                .as_deref()
                 .unwrap_or_else(|| format!("{:?}", call.tool).leak());
-            println!(
-                "[{}] TOOL CALL: {}",
-                format_time(call.timestamp),
-                tool_name
-            );
+            println!("[{}] TOOL CALL: {}", format_time(call.timestamp), tool_name);
             // Show input summary (truncated for readability)
             let input_str = serde_json::to_string(&call.input).unwrap_or_default();
             if input_str.len() > 100 {

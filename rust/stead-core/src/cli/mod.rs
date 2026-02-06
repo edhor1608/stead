@@ -185,7 +185,11 @@ mod tests {
         let cli = Cli::parse_from(["stead", "session", "list"]);
         match cli.command {
             Commands::Session { command } => match command {
-                SessionCommands::List { cli, project, limit } => {
+                SessionCommands::List {
+                    cli,
+                    project,
+                    limit,
+                } => {
                     assert_eq!(cli, None);
                     assert_eq!(project, None);
                     assert_eq!(limit, 20);
@@ -199,11 +203,23 @@ mod tests {
     #[test]
     fn test_session_list_with_filters() {
         let cli = Cli::parse_from([
-            "stead", "session", "list", "--cli", "claude", "--project", "stead", "--limit", "10",
+            "stead",
+            "session",
+            "list",
+            "--cli",
+            "claude",
+            "--project",
+            "stead",
+            "--limit",
+            "10",
         ]);
         match cli.command {
             Commands::Session { command } => match command {
-                SessionCommands::List { cli, project, limit } => {
+                SessionCommands::List {
+                    cli,
+                    project,
+                    limit,
+                } => {
                     assert_eq!(cli, Some("claude".to_string()));
                     assert_eq!(project, Some("stead".to_string()));
                     assert_eq!(limit, 10);

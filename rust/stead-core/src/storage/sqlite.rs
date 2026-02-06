@@ -20,9 +20,8 @@ impl SqliteStorage {
     pub fn open(cwd: &Path) -> Result<Self, StorageError> {
         let dir = super::ensure_stead_dir(cwd)?;
         let db_path = dir.join(DB_FILE);
-        let conn = Connection::open(&db_path).map_err(|e| {
-            StorageError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
-        })?;
+        let conn = Connection::open(&db_path)
+            .map_err(|e| StorageError::Io(std::io::Error::other(e.to_string())))?;
         let storage = Self { conn };
         storage.init_schema()?;
         Ok(storage)
@@ -32,7 +31,10 @@ impl SqliteStorage {
     #[cfg(test)]
     pub fn open_in_memory() -> Result<Self, StorageError> {
         let conn = Connection::open_in_memory().map_err(|e| {
-            StorageError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
+            StorageError::Io(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                e.to_string(),
+            ))
         })?;
         let storage = Self { conn };
         storage.init_schema()?;
@@ -59,16 +61,18 @@ impl SqliteStorage {
                 CREATE INDEX IF NOT EXISTS idx_contracts_project_path ON contracts(project_path);
                 CREATE INDEX IF NOT EXISTS idx_contracts_owner ON contracts(owner);",
             )
-            .map_err(|e| {
-                StorageError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
-            })?;
+            .map_err(|e| StorageError::Io(std::io::Error::other(e.to_string())))?;
 
         // Migration: add new columns if they don't exist (for existing DBs)
-        for col in ["owner TEXT", "blocked_by TEXT NOT NULL DEFAULT '[]'", "blocks TEXT NOT NULL DEFAULT '[]'"] {
+        for col in [
+            "owner TEXT",
+            "blocked_by TEXT NOT NULL DEFAULT '[]'",
+            "blocks TEXT NOT NULL DEFAULT '[]'",
+        ] {
             let col_name = col.split_whitespace().next().unwrap();
-            let _ = self.conn.execute_batch(
-                &format!("ALTER TABLE contracts ADD COLUMN {}", col),
-            );
+            let _ = self
+                .conn
+                .execute_batch(&format!("ALTER TABLE contracts ADD COLUMN {}", col));
             // Ignore error — column already exists
             let _ = col_name; // suppress unused warning
         }
@@ -103,7 +107,7 @@ impl super::Storage for SqliteStorage {
                 ],
             )
             .map_err(|e| {
-                StorageError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
+                StorageError::Io(std::io::Error::other(e.to_string()))
             })?;
         Ok(())
     }
@@ -112,14 +116,12 @@ impl super::Storage for SqliteStorage {
         let mut stmt = self
             .conn
             .prepare("SELECT id, task, verify_cmd, status, output, created_at, completed_at, owner, blocked_by, blocks FROM contracts WHERE id = ?1")
-            .map_err(|e| StorageError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))?;
+            .map_err(|e| StorageError::Io(std::io::Error::other(e.to_string())))?;
 
         let result = stmt
-            .query_row(params![id], |row| row_to_contract(row))
+            .query_row(params![id], row_to_contract)
             .optional()
-            .map_err(|e| {
-                StorageError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
-            })?;
+            .map_err(|e| StorageError::Io(std::io::Error::other(e.to_string())))?;
 
         Ok(result)
     }
@@ -128,17 +130,13 @@ impl super::Storage for SqliteStorage {
         let mut stmt = self
             .conn
             .prepare("SELECT id, task, verify_cmd, status, output, created_at, completed_at, owner, blocked_by, blocks FROM contracts ORDER BY created_at DESC")
-            .map_err(|e| StorageError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))?;
+            .map_err(|e| StorageError::Io(std::io::Error::other(e.to_string())))?;
 
         let contracts = stmt
-            .query_map([], |row| row_to_contract(row))
-            .map_err(|e| {
-                StorageError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
-            })?
+            .query_map([], row_to_contract)
+            .map_err(|e| StorageError::Io(std::io::Error::other(e.to_string())))?
             .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| {
-                StorageError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
-            })?;
+            .map_err(|e| StorageError::Io(std::io::Error::other(e.to_string())))?;
 
         Ok(contracts)
     }
@@ -161,7 +159,7 @@ impl super::Storage for SqliteStorage {
                 ],
             )
             .map_err(|e| {
-                StorageError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
+                StorageError::Io(std::io::Error::other(e.to_string()))
             })?;
 
         if rows == 0 {
@@ -174,17 +172,13 @@ impl super::Storage for SqliteStorage {
         let mut stmt = self
             .conn
             .prepare("SELECT id, task, verify_cmd, status, output, created_at, completed_at, owner, blocked_by, blocks FROM contracts WHERE status = ?1 ORDER BY created_at DESC")
-            .map_err(|e| StorageError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))?;
+            .map_err(|e| StorageError::Io(std::io::Error::other(e.to_string())))?;
 
         let contracts = stmt
-            .query_map(params![status], |row| row_to_contract(row))
-            .map_err(|e| {
-                StorageError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
-            })?
+            .query_map(params![status], row_to_contract)
+            .map_err(|e| StorageError::Io(std::io::Error::other(e.to_string())))?
             .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| {
-                StorageError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
-            })?;
+            .map_err(|e| StorageError::Io(std::io::Error::other(e.to_string())))?;
 
         Ok(contracts)
     }
@@ -200,10 +194,16 @@ fn row_to_contract(row: &rusqlite::Row) -> rusqlite::Result<Contract> {
     let created_at_str: String = row.get(5)?;
     let completed_at_str: Option<String> = row.get(6)?;
     let owner: Option<String> = row.get(7)?;
-    let blocked_by_str: String = row.get::<_, Option<String>>(8)?.unwrap_or_else(|| "[]".to_string());
-    let blocks_str: String = row.get::<_, Option<String>>(9)?.unwrap_or_else(|| "[]".to_string());
+    let blocked_by_str: String = row
+        .get::<_, Option<String>>(8)?
+        .unwrap_or_else(|| "[]".to_string());
+    let blocks_str: String = row
+        .get::<_, Option<String>>(9)?
+        .unwrap_or_else(|| "[]".to_string());
 
-    let status = status_str.parse::<ContractStatus>().unwrap_or(ContractStatus::Pending);
+    let status = status_str
+        .parse::<ContractStatus>()
+        .unwrap_or(ContractStatus::Pending);
 
     let created_at = DateTime::parse_from_rfc3339(&created_at_str)
         .map(|dt| dt.with_timezone(&Utc))

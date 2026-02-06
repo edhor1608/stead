@@ -169,10 +169,7 @@ pub fn list_contracts(cwd: &Path) -> Result<Vec<Contract>, StorageError> {
 
     // Log warnings for corrupted entries
     if !errors.is_empty() {
-        eprintln!(
-            "Warning: {} contract(s) could not be loaded:",
-            errors.len()
-        );
+        eprintln!("Warning: {} contract(s) could not be loaded:", errors.len());
         for (line, error) in errors {
             eprintln!("  - Line {}: {}", line, error);
         }

@@ -37,11 +37,7 @@ pub struct UniversalSession {
 
 impl UniversalSession {
     /// Create a new session with minimal required fields
-    pub fn new(
-        cli: CliType,
-        original_id: Option<String>,
-        project_path: String,
-    ) -> Self {
+    pub fn new(cli: CliType, original_id: Option<String>, project_path: String) -> Self {
         let id = match &original_id {
             Some(oid) => format!("{}-{}", cli.as_str(), oid),
             None => format!("{}-{}", cli.as_str(), generate_id()),
@@ -50,10 +46,7 @@ impl UniversalSession {
         Self {
             id,
             version: USF_VERSION.to_string(),
-            source: SessionSource {
-                cli,
-                original_id,
-            },
+            source: SessionSource { cli, original_id },
             project: ProjectInfo {
                 path: project_path,
                 name: None,
@@ -446,11 +439,7 @@ mod tests {
 
     #[test]
     fn test_session_title_from_message() {
-        let mut session = UniversalSession::new(
-            CliType::Claude,
-            None,
-            "/project".to_string(),
-        );
+        let mut session = UniversalSession::new(CliType::Claude, None, "/project".to_string());
 
         session.timeline.push(TimelineEntry::User(UserMessage {
             id: "1".to_string(),
@@ -485,12 +474,14 @@ mod tests {
             timestamp: Utc::now(),
             content: "Hello".to_string(),
         }));
-        session.timeline.push(TimelineEntry::Assistant(AssistantMessage {
-            id: "2".to_string(),
-            timestamp: Utc::now(),
-            content: "Hi!".to_string(),
-            thinking: None,
-        }));
+        session
+            .timeline
+            .push(TimelineEntry::Assistant(AssistantMessage {
+                id: "2".to_string(),
+                timestamp: Utc::now(),
+                content: "Hi!".to_string(),
+                thinking: None,
+            }));
         session.timeline.push(TimelineEntry::ToolCall(ToolCall {
             id: "3".to_string(),
             timestamp: Utc::now(),
@@ -511,7 +502,10 @@ mod tests {
         assert_eq!(UniversalTool::from_claude("Write"), UniversalTool::Write);
         assert_eq!(UniversalTool::from_claude("Bash"), UniversalTool::Bash);
         assert_eq!(UniversalTool::from_claude("Grep"), UniversalTool::Search);
-        assert_eq!(UniversalTool::from_claude("Unknown"), UniversalTool::Unknown);
+        assert_eq!(
+            UniversalTool::from_claude("Unknown"),
+            UniversalTool::Unknown
+        );
     }
 
     #[test]
@@ -525,7 +519,10 @@ mod tests {
     fn test_tool_mapping_opencode() {
         assert_eq!(UniversalTool::from_opencode("read"), UniversalTool::Read);
         assert_eq!(UniversalTool::from_opencode("bash"), UniversalTool::Bash);
-        assert_eq!(UniversalTool::from_opencode("file_edit"), UniversalTool::Edit);
+        assert_eq!(
+            UniversalTool::from_opencode("file_edit"),
+            UniversalTool::Edit
+        );
     }
 
     #[test]

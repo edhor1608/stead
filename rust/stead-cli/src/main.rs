@@ -37,7 +37,11 @@ fn main() -> anyhow::Result<()> {
             commands::cancel::execute(&id, cli.json)?;
         }
         Commands::Session { command } => match command {
-            SessionCommands::List { cli: cli_filter, project, limit } => {
+            SessionCommands::List {
+                cli: cli_filter,
+                project,
+                limit,
+            } => {
                 commands::session::list_sessions(
                     cli_filter.as_deref(),
                     project.as_deref(),

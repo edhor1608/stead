@@ -78,24 +78,20 @@ pub fn discover_all_sessions() -> Vec<SessionSummary> {
 /// Load a session by CLI type and ID
 pub fn load_session(cli: crate::usf::CliType, id: &str) -> Result<UniversalSession, AdapterError> {
     match cli {
-        crate::usf::CliType::Claude => {
-            claude::ClaudeAdapter::new()
-                .ok_or_else(|| AdapterError::DirectoryNotFound("~/.claude not found".to_string()))?
-                .load_session(id)
-        }
-        crate::usf::CliType::Codex => {
-            codex::CodexAdapter::new()
-                .ok_or_else(|| AdapterError::DirectoryNotFound("~/.codex not found".to_string()))?
-                .load_session(id)
-        }
-        crate::usf::CliType::OpenCode => {
-            opencode::OpenCodeAdapter::new()
-                .ok_or_else(|| AdapterError::DirectoryNotFound("~/.local/share/opencode not found".to_string()))?
-                .load_session(id)
-        }
-        crate::usf::CliType::Universal => {
-            Err(AdapterError::InvalidFormat("Cannot load universal sessions directly".to_string()))
-        }
+        crate::usf::CliType::Claude => claude::ClaudeAdapter::new()
+            .ok_or_else(|| AdapterError::DirectoryNotFound("~/.claude not found".to_string()))?
+            .load_session(id),
+        crate::usf::CliType::Codex => codex::CodexAdapter::new()
+            .ok_or_else(|| AdapterError::DirectoryNotFound("~/.codex not found".to_string()))?
+            .load_session(id),
+        crate::usf::CliType::OpenCode => opencode::OpenCodeAdapter::new()
+            .ok_or_else(|| {
+                AdapterError::DirectoryNotFound("~/.local/share/opencode not found".to_string())
+            })?
+            .load_session(id),
+        crate::usf::CliType::Universal => Err(AdapterError::InvalidFormat(
+            "Cannot load universal sessions directly".to_string(),
+        )),
     }
 }
 
@@ -107,7 +103,12 @@ pub fn load_session_by_id(id: &str) -> Result<UniversalSession, AdapterError> {
             "claude" => crate::usf::CliType::Claude,
             "codex" => crate::usf::CliType::Codex,
             "opencode" => crate::usf::CliType::OpenCode,
-            _ => return Err(AdapterError::InvalidFormat(format!("Unknown CLI prefix: {}", cli_str))),
+            _ => {
+                return Err(AdapterError::InvalidFormat(format!(
+                    "Unknown CLI prefix: {}",
+                    cli_str
+                )))
+            }
         };
         return load_session(cli, id);
     }

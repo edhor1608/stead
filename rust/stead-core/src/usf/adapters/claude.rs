@@ -52,7 +52,8 @@ impl ClaudeAdapter {
         let mut timeline: Vec<TimelineEntry> = Vec::new();
 
         // Track tool calls to match with results
-        let mut pending_tool_calls: HashMap<String, (String, UniversalTool, serde_json::Value)> = HashMap::new();
+        let mut pending_tool_calls: HashMap<String, (String, UniversalTool, serde_json::Value)> =
+            HashMap::new();
 
         for line in reader.lines() {
             let line = line?;
@@ -118,7 +119,13 @@ impl ClaudeAdapter {
                                         // Match with pending tool call
                                         let (original_id, _tool, _input) = pending_tool_calls
                                             .remove(tool_use_id)
-                                            .unwrap_or_else(|| (tool_use_id.clone(), UniversalTool::Unknown, serde_json::Value::Null));
+                                            .unwrap_or_else(|| {
+                                                (
+                                                    tool_use_id.clone(),
+                                                    UniversalTool::Unknown,
+                                                    serde_json::Value::Null,
+                                                )
+                                            });
 
                                         timeline.push(TimelineEntry::ToolResult(ToolResult {
                                             id: entry.uuid.clone().unwrap_or_default(),
@@ -155,10 +162,8 @@ impl ClaudeAdapter {
                                         let tool_call_id = id.clone();
 
                                         // Store for matching with result
-                                        pending_tool_calls.insert(
-                                            id.clone(),
-                                            (id.clone(), tool, input.clone()),
-                                        );
+                                        pending_tool_calls
+                                            .insert(id.clone(), (id.clone(), tool, input.clone()));
 
                                         timeline.push(TimelineEntry::ToolCall(ToolCall {
                                             id: tool_call_id,
@@ -170,7 +175,9 @@ impl ClaudeAdapter {
                                     }
                                     ContentItem::Thinking { thinking } => {
                                         // Add thinking to the last assistant message if exists
-                                        if let Some(TimelineEntry::Assistant(msg)) = timeline.last_mut() {
+                                        if let Some(TimelineEntry::Assistant(msg)) =
+                                            timeline.last_mut()
+                                        {
                                             msg.thinking = Some(thinking.clone());
                                         }
                                     }
@@ -229,7 +236,7 @@ impl ClaudeAdapter {
             .project
             .path
             .split('/')
-            .last()
+            .next_back()
             .map(|s| s.to_string());
 
         Ok(session)
@@ -272,7 +279,11 @@ impl SessionAdapter for ClaudeAdapter {
                 let session_path = session_entry.path();
 
                 // Only process .jsonl files
-                if session_path.extension().map(|e| e != "jsonl").unwrap_or(true) {
+                if session_path
+                    .extension()
+                    .map(|e| e != "jsonl")
+                    .unwrap_or(true)
+                {
                     continue;
                 }
 
@@ -428,6 +439,7 @@ fn truncate(s: &str, max_len: usize) -> String {
 #[serde(rename_all = "camelCase")]
 struct ClaudeEntry {
     #[serde(rename = "type")]
+    #[allow(dead_code)]
     entry_type: Option<String>,
     uuid: Option<String>,
     session_id: Option<String>,
@@ -503,7 +515,8 @@ mod tests {
 
     #[test]
     fn test_tool_use_parsing() {
-        let json = r#"{"type": "tool_use", "id": "123", "name": "Read", "input": {"path": "/file"}}"#;
+        let json =
+            r#"{"type": "tool_use", "id": "123", "name": "Read", "input": {"path": "/file"}}"#;
         let item: ContentItem = serde_json::from_str(json).unwrap();
         match item {
             ContentItem::ToolUse { id, name, input } => {

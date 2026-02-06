@@ -15,13 +15,16 @@ rust/                       # Cargo workspace
   stead-core/               # Library — all business logic
     src/
       cli/                  # CLI argument definitions (clap)
-      schema/               # Contract types and lifecycle
-      storage/              # JSONL persistence (SQLite in M3)
+      schema/               # Contract types, 10-state lifecycle
+      storage/              # SQLite persistence (auto-migrates from JSONL)
       usf/                  # Universal Session Format adapters
-      commands/             # Command implementations
+      commands/             # Command implementations (run, create, list, show, verify, claim, cancel, session)
   stead-cli/                # Binary — thin clap wrapper
     src/main.rs
     tests/integration.rs    # CLI integration tests
+  stead-ffi/                # UniFFI Swift bindings
+macos/
+  Stead/                    # SwiftUI Control Room app
 docs/
   research/                 # Problem analysis, user research, prior art
   plans/                    # Specs, architecture decisions, roadmaps
@@ -48,6 +51,15 @@ The problem: Modern dev workflows involve multiple projects running simultaneous
 - **Research goes in docs/research/** - Problem analysis, user interviews, prior art
 - **Plans go in docs/plans/** - Specs, architecture, roadmaps
 
+## Build & Test
+
+```bash
+cd rust
+cargo test --workspace          # 114 tests (98 unit + 16 integration)
+cargo clippy --workspace        # zero warnings
+cargo fmt --all --check         # formatting
+```
+
 ## Status
 
-Rust implementation in progress. M1 (USF adapters) and M2 (workspace restructure) complete. M3 (SQLite storage) next.
+All milestones complete: M1 (USF adapters), M2 (workspace restructure), M3 (SQLite storage), M4 (UniFFI Swift bindings), M5 (SwiftUI Control Room), M6 (10-state contract lifecycle).

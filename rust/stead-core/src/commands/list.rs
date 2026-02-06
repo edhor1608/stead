@@ -13,11 +13,7 @@ pub fn execute(status_filter: Option<&str>, json_output: bool) -> Result<()> {
 }
 
 /// Execute with explicit working directory (for testing)
-pub fn execute_with_cwd(
-    status_filter: Option<&str>,
-    json_output: bool,
-    cwd: &Path,
-) -> Result<()> {
+pub fn execute_with_cwd(status_filter: Option<&str>, json_output: bool, cwd: &Path) -> Result<()> {
     let db = storage::sqlite::open_default(cwd)?;
     execute_with_storage(status_filter, json_output, &db)
 }
@@ -47,10 +43,7 @@ pub fn execute_with_storage(
     }
 
     // Print table header
-    println!(
-        "{:15} {:9} {:30} {:16}",
-        "ID", "STATUS", "TASK", "CREATED"
-    );
+    println!("{:15} {:9} {:30} {:16}", "ID", "STATUS", "TASK", "CREATED");
     println!("{}", "-".repeat(72));
 
     // Print each contract

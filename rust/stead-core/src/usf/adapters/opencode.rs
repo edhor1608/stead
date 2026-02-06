@@ -104,12 +104,14 @@ impl OpenCodeAdapter {
                                             }));
                                         }
                                         "assistant" => {
-                                            timeline.push(TimelineEntry::Assistant(AssistantMessage {
-                                                id: part.id.clone(),
-                                                timestamp: ts,
-                                                content: text,
-                                                thinking: None,
-                                            }));
+                                            timeline.push(TimelineEntry::Assistant(
+                                                AssistantMessage {
+                                                    id: part.id.clone(),
+                                                    timestamp: ts,
+                                                    content: text,
+                                                    thinking: None,
+                                                },
+                                            ));
                                         }
                                         _ => {}
                                     }
@@ -119,8 +121,11 @@ impl OpenCodeAdapter {
                         "tool-invocation" => {
                             if let Some(tool_name) = part.tool_name {
                                 let tool = UniversalTool::from_opencode(&tool_name);
-                                let input = part.tool_invocation_input
-                                    .map(|s| serde_json::from_str(&s).unwrap_or(serde_json::Value::Null))
+                                let input = part
+                                    .tool_invocation_input
+                                    .map(|s| {
+                                        serde_json::from_str(&s).unwrap_or(serde_json::Value::Null)
+                                    })
                                     .unwrap_or(serde_json::Value::Null);
 
                                 tool_call_map.insert(part.id.clone(), part.id.clone());
@@ -171,7 +176,7 @@ impl OpenCodeAdapter {
             },
             project: ProjectInfo {
                 path: project_path.clone(),
-                name: project_path.split('/').last().map(|s| s.to_string()),
+                name: project_path.split('/').next_back().map(|s| s.to_string()),
                 git: None, // OpenCode doesn't store git info in sessions
             },
             model: ModelInfo {
@@ -224,7 +229,10 @@ impl OpenCodeAdapter {
         Err(AdapterError::NotFound(session_id.to_string()))
     }
 
-    fn load_json_file<T: for<'de> Deserialize<'de>>(&self, path: &PathBuf) -> Result<T, AdapterError> {
+    fn load_json_file<T: for<'de> Deserialize<'de>>(
+        &self,
+        path: &PathBuf,
+    ) -> Result<T, AdapterError> {
         let file = File::open(path)?;
         let reader = BufReader::new(file);
         Ok(serde_json::from_reader(reader)?)
@@ -316,7 +324,10 @@ impl OpenCodeAdapter {
                         }
                     }
                 }
-                format!("Session {}", &session_meta.id[..8.min(session_meta.id.len())])
+                format!(
+                    "Session {}",
+                    &session_meta.id[..8.min(session_meta.id.len())]
+                )
             });
 
         // Count messages
@@ -376,7 +387,11 @@ impl SessionAdapter for OpenCodeAdapter {
                 let session_entry = session_entry?;
                 let session_path = session_entry.path();
 
-                if session_path.extension().map(|e| e != "json").unwrap_or(true) {
+                if session_path
+                    .extension()
+                    .map(|e| e != "json")
+                    .unwrap_or(true)
+                {
                     continue;
                 }
 
@@ -441,6 +456,7 @@ struct OpenCodeProject {
 struct OpenCodeMessage {
     id: String,
     role: String,
+    #[allow(dead_code)]
     session_id: String,
     time: OpenCodeMessageTime,
 }
@@ -460,7 +476,9 @@ struct OpenCodePart {
     tool_name: Option<String>,
     tool_invocation_input: Option<String>,
     tool_invocation_id: Option<String>,
+    #[allow(dead_code)]
     message_id: String,
+    #[allow(dead_code)]
     session_id: String,
     time: OpenCodePartTime,
 }
@@ -468,6 +486,7 @@ struct OpenCodePart {
 #[derive(Debug, Deserialize)]
 struct OpenCodePartTime {
     start: i64,
+    #[allow(dead_code)]
     end: i64,
 }
 

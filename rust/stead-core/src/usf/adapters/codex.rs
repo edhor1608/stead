@@ -55,7 +55,8 @@ impl CodexAdapter {
         let mut timeline: Vec<TimelineEntry> = Vec::new();
 
         // Track tool calls to match with results
-        let mut pending_tool_calls: HashMap<String, (UniversalTool, serde_json::Value)> = HashMap::new();
+        let mut pending_tool_calls: HashMap<String, (UniversalTool, serde_json::Value)> =
+            HashMap::new();
         let mut entry_index = 0u64;
 
         for line in reader.lines() {
@@ -127,18 +128,30 @@ impl CodexAdapter {
                                                     Some("input_text") | Some("text") => {
                                                         if let Some(text) = item.text {
                                                             if role == "user" {
-                                                                timeline.push(TimelineEntry::User(UserMessage {
-                                                                    id: format!("{}", entry_index),
-                                                                    timestamp: ts,
-                                                                    content: text,
-                                                                }));
+                                                                timeline.push(TimelineEntry::User(
+                                                                    UserMessage {
+                                                                        id: format!(
+                                                                            "{}",
+                                                                            entry_index
+                                                                        ),
+                                                                        timestamp: ts,
+                                                                        content: text,
+                                                                    },
+                                                                ));
                                                             } else if role == "assistant" {
-                                                                timeline.push(TimelineEntry::Assistant(AssistantMessage {
-                                                                    id: format!("{}", entry_index),
-                                                                    timestamp: ts,
-                                                                    content: text,
-                                                                    thinking: None,
-                                                                }));
+                                                                timeline.push(
+                                                                    TimelineEntry::Assistant(
+                                                                        AssistantMessage {
+                                                                            id: format!(
+                                                                                "{}",
+                                                                                entry_index
+                                                                            ),
+                                                                            timestamp: ts,
+                                                                            content: text,
+                                                                            thinking: None,
+                                                                        },
+                                                                    ),
+                                                                );
                                                             }
                                                         }
                                                     }
@@ -151,12 +164,19 @@ impl CodexAdapter {
                                 "function_call" => {
                                     if let Some(name) = payload.name {
                                         let tool = UniversalTool::from_codex(&name);
-                                        let id = payload.call_id.unwrap_or_else(|| format!("{}", entry_index));
-                                        let arguments = payload.arguments
-                                            .map(|s| serde_json::from_str(&s).unwrap_or(serde_json::Value::Null))
+                                        let id = payload
+                                            .call_id
+                                            .unwrap_or_else(|| format!("{}", entry_index));
+                                        let arguments = payload
+                                            .arguments
+                                            .map(|s| {
+                                                serde_json::from_str(&s)
+                                                    .unwrap_or(serde_json::Value::Null)
+                                            })
                                             .unwrap_or(serde_json::Value::Null);
 
-                                        pending_tool_calls.insert(id.clone(), (tool, arguments.clone()));
+                                        pending_tool_calls
+                                            .insert(id.clone(), (tool, arguments.clone()));
 
                                         timeline.push(TimelineEntry::ToolCall(ToolCall {
                                             id: id.clone(),
@@ -262,7 +282,7 @@ impl CodexAdapter {
             .project
             .path
             .split('/')
-            .last()
+            .next_back()
             .map(|s| s.to_string());
 
         Ok(session)
@@ -407,9 +427,8 @@ impl SessionAdapter for CodexAdapter {
         // e.g., sessions/2026/01/04/rollout-....jsonl
         Self::walk_session_files(&sessions_dir, &mut |path| {
             if path.extension().map(|e| e == "jsonl").unwrap_or(false) {
-                match self.parse_session_summary(&path) {
-                    Ok(summary) => sessions.push(summary),
-                    Err(_) => {} // Skip unparseable sessions
+                if let Ok(summary) = self.parse_session_summary(&path) {
+                    sessions.push(summary);
                 }
             }
         })?;

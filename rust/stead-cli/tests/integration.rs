@@ -231,10 +231,7 @@ fn test_session_list_help() {
 fn test_session_list_runs() {
     // Session list should succeed whether or not AI CLIs are installed
     // Output varies based on what's installed, so just verify it runs
-    stead()
-        .args(["session", "list"])
-        .assert()
-        .success();
+    stead().args(["session", "list"]).assert().success();
 }
 
 #[test]

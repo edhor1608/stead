@@ -11,11 +11,7 @@ pub fn execute(id: &str, json_output: bool) -> Result<()> {
 }
 
 /// Execute with a specific storage backend
-pub fn execute_with_storage(
-    id: &str,
-    json_output: bool,
-    storage: &dyn Storage,
-) -> Result<()> {
+pub fn execute_with_storage(id: &str, json_output: bool, storage: &dyn Storage) -> Result<()> {
     let mut contract = match storage.load_contract(id)? {
         Some(c) => c,
         None => bail!("Contract not found: {}", id),

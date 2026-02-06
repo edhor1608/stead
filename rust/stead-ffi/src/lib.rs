@@ -133,8 +133,8 @@ pub enum FfiError {
 
 #[uniffi::export]
 pub fn list_contracts(cwd: String) -> Result<Vec<FfiContract>, FfiError> {
-    let contracts = stead_core::storage::list_contracts(Path::new(&cwd))
-        .map_err(|e| FfiError::Storage {
+    let contracts =
+        stead_core::storage::list_contracts(Path::new(&cwd)).map_err(|e| FfiError::Storage {
             message: e.to_string(),
         })?;
     Ok(contracts.into_iter().map(FfiContract::from).collect())

@@ -14,12 +14,7 @@ pub fn execute(task: &str, verify_cmd: &str, json_output: bool) -> Result<()> {
 }
 
 /// Execute with explicit working directory (for testing)
-pub fn execute_with_cwd(
-    task: &str,
-    verify_cmd: &str,
-    json_output: bool,
-    cwd: &Path,
-) -> Result<()> {
+pub fn execute_with_cwd(task: &str, verify_cmd: &str, json_output: bool, cwd: &Path) -> Result<()> {
     let db = storage::sqlite::open_default(cwd)?;
     execute_with_storage(task, verify_cmd, json_output, &db)
 }

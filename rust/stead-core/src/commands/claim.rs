@@ -24,11 +24,15 @@ pub fn execute_with_storage(
 
     // Pending → Ready (if needed)
     if contract.status == crate::schema::ContractStatus::Pending {
-        contract.mark_ready().map_err(|e| anyhow::anyhow!("{}", e))?;
+        contract
+            .mark_ready()
+            .map_err(|e| anyhow::anyhow!("{}", e))?;
     }
 
     // Ready → Claimed
-    contract.claim(owner).map_err(|e| anyhow::anyhow!("{}", e))?;
+    contract
+        .claim(owner)
+        .map_err(|e| anyhow::anyhow!("{}", e))?;
     storage.update_contract(&contract)?;
 
     if json_output {

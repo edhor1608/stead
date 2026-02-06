@@ -39,14 +39,14 @@ impl ContractStatus {
         match self {
             Pending => &[Ready, Cancelled],
             Ready => &[Claimed, Cancelled],
-            Claimed => &[Executing, Ready, Cancelled],        // unclaim goes back to Ready
+            Claimed => &[Executing, Ready, Cancelled], // unclaim goes back to Ready
             Executing => &[Verifying, Failed, Cancelled],
             Verifying => &[Completed, Failed],
-            Completed => &[],                                  // terminal
-            Failed => &[Ready, RollingBack, Cancelled],       // retry or rollback
+            Completed => &[],                           // terminal
+            Failed => &[Ready, RollingBack, Cancelled], // retry or rollback
             RollingBack => &[RolledBack, Failed],
-            RolledBack => &[],                                 // terminal
-            Cancelled => &[],                                  // terminal
+            RolledBack => &[], // terminal
+            Cancelled => &[],  // terminal
         }
     }
 
@@ -234,7 +234,11 @@ pub fn generate_id() -> String {
 
     let random: u32 = rand_simple();
 
-    format!("{}-{}", to_base36(timestamp as u64), to_base36(random as u64))
+    format!(
+        "{}-{}",
+        to_base36(timestamp as u64),
+        to_base36(random as u64)
+    )
 }
 
 /// Simple random number generator (no external dependency)
@@ -514,9 +518,18 @@ mod tests {
 
     #[test]
     fn test_status_from_str() {
-        assert_eq!("pending".parse::<ContractStatus>().unwrap(), ContractStatus::Pending);
-        assert_eq!("ready".parse::<ContractStatus>().unwrap(), ContractStatus::Ready);
-        assert_eq!("executing".parse::<ContractStatus>().unwrap(), ContractStatus::Executing);
+        assert_eq!(
+            "pending".parse::<ContractStatus>().unwrap(),
+            ContractStatus::Pending
+        );
+        assert_eq!(
+            "ready".parse::<ContractStatus>().unwrap(),
+            ContractStatus::Ready
+        );
+        assert_eq!(
+            "executing".parse::<ContractStatus>().unwrap(),
+            ContractStatus::Executing
+        );
         assert!("bogus".parse::<ContractStatus>().is_err());
     }
 }
