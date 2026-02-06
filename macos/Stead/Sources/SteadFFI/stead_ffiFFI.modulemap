@@ -1,4 +1,0 @@
-module stead_ffiFFI {
-    header "stead_ffiFFI.h"
-    export *
-}
