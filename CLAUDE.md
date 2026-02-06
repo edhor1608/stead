@@ -11,15 +11,28 @@ Every architectural choice, tech selection, or feature must trace back to solvin
 ## Project Structure
 
 ```text
+rust/                       # Cargo workspace
+  stead-core/               # Library — all business logic
+    src/
+      cli/                  # CLI argument definitions (clap)
+      schema/               # Contract types and lifecycle
+      storage/              # JSONL persistence (SQLite in M3)
+      usf/                  # Universal Session Format adapters
+      commands/             # Command implementations
+  stead-cli/                # Binary — thin clap wrapper
+    src/main.rs
+    tests/integration.rs    # CLI integration tests
 docs/
-  research/       # Problem analysis, user research, prior art
-  plans/          # Specs, architecture decisions, roadmaps
+  research/                 # Problem analysis, user research, prior art
+  plans/                    # Specs, architecture decisions, roadmaps
+.github/workflows/ci.yml   # CI: fmt, clippy, test, build
 ```
 
 ## Key Files
 
 - `docs/research/problem-analysis.md` - Core problem breakdown
 - `docs/plans/decisions-log.md` - ADR-style decision tracking
+- `rust/README.md` - Rust workspace details, build/test instructions
 
 ## Context
 
@@ -37,4 +50,4 @@ The problem: Modern dev workflows involve multiple projects running simultaneous
 
 ## Status
 
-Research/exploration phase. Scope TBD.
+Rust implementation in progress. M1 (USF adapters) and M2 (workspace restructure) complete. M3 (SQLite storage) next.

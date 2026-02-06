@@ -4,3 +4,6 @@
 # Cargo.lock for binaries
 # Uncomment to exclude from version control (optional)
 # Cargo.lock
+
+# Local stead database
+.stead/

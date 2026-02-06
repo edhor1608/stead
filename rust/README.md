@@ -2,24 +2,29 @@
 
 Rust implementation of the stead CLI and core library.
 
+**Status:** M1 (USF adapters) and M2 (workspace restructure) complete. M3 (SQLite storage) next.
+
 ## Workspace Structure
 
-After M2 restructuring, this is a Cargo workspace:
+Cargo workspace with two crates:
 
 ```
 rust/
-├── Cargo.toml          # Workspace manifest
-├── stead-core/         # Library — all logic lives here
+├── Cargo.toml              # Workspace manifest
+├── stead-core/             # Library — all logic lives here
 │   └── src/
-│       ├── lib.rs      # Public API
-│       ├── schema/     # Contract types and lifecycle
-│       ├── storage/    # JSONL persistence (SQLite in M3)
-│       ├── usf/        # Universal Session Format
-│       └── commands/   # Command implementations
-├── stead-cli/          # Binary — thin wrapper calling stead-core
-│   └── src/main.rs
-└── tests/
-    └── integration.rs
+│       ├── lib.rs          # Public API
+│       ├── cli/            # CLI argument definitions (clap)
+│       ├── schema/         # Contract types and lifecycle
+│       ├── storage/        # JSONL persistence (SQLite in M3)
+│       ├── usf/            # Universal Session Format
+│       │   ├── schema.rs   # Canonical session types
+│       │   └── adapters/   # Claude Code, Codex CLI, OpenCode
+│       └── commands/       # Command implementations
+└── stead-cli/              # Binary — thin clap wrapper
+    ├── src/main.rs
+    └── tests/
+        └── integration.rs  # CLI integration tests
 ```
 
 **stead-core** contains all business logic: contracts, storage, USF adapters, and command handlers. It exposes a public API that any consumer (CLI, FFI, tests) can use.
@@ -33,13 +38,25 @@ cd rust
 cargo build --workspace
 ```
 
+Release build for macOS aarch64:
+```bash
+cargo build --release --target aarch64-apple-darwin
+```
+
 ## Testing
 
 ```bash
 cargo test --workspace
 ```
 
-88 tests: 72 unit tests in stead-core, 16 integration tests.
+Unit tests live alongside source in stead-core. Integration tests (CLI invocations via `assert_cmd`) are in `stead-cli/tests/`.
+
+## Linting
+
+```bash
+cargo fmt --all --check
+cargo clippy --workspace -- -D warnings
+```
 
 ## Modules
 
@@ -70,7 +87,7 @@ Canonical representation for AI coding CLI sessions. Adapters for:
 ## CI
 
 GitHub Actions workflow at `.github/workflows/ci.yml`:
-- `cargo fmt --check`
-- `cargo clippy --workspace`
+- `cargo fmt --all --check`
+- `cargo clippy --workspace -- -D warnings`
 - `cargo test --workspace`
-- Release build for macOS aarch64
+- Release build for macOS aarch64 with artifact upload
