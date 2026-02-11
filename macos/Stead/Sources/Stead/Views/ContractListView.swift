@@ -50,7 +50,7 @@ struct ContractListView: View {
     private var contractDetail: some View {
         Group {
             if let contract = selectedContract {
-                ContractDetailView(contract: contract)
+                ContractDetailView(store: store, contract: contract)
             } else {
                 Text("Select a contract")
                     .foregroundStyle(.secondary)
@@ -96,6 +96,7 @@ struct ContractRow: View {
 // MARK: - Contract Detail
 
 struct ContractDetailView: View {
+    @ObservedObject var store: SteadStore
     let contract: ContractItem
 
     var body: some View {
@@ -115,11 +116,30 @@ struct ContractDetailView: View {
                         .foregroundStyle(.secondary)
                 }
 
+                HStack(spacing: 10) {
+                    Button("Open Project") { store.openProject(for: contract) }
+
+                    Button("Verify") { store.verify(contract: contract) }
+
+                    Button("Claim") { store.claim(contract: contract) }
+                        .disabled(!(contract.status == .pending || contract.status == .ready))
+
+                    Button("Cancel") { store.cancel(contract: contract) }
+                        .disabled(contract.status == .completed || contract.status == .failed || contract.status == .rolledBack || contract.status == .cancelled)
+                }
+                .buttonStyle(.borderless)
+
                 Divider()
 
                 // Task
                 DetailSection(title: "Task") {
                     Text(contract.task)
+                        .textSelection(.enabled)
+                }
+
+                DetailSection(title: "Project") {
+                    Text(contract.projectPath)
+                        .font(.caption.monospaced())
                         .textSelection(.enabled)
                 }
 

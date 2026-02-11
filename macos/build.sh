@@ -8,15 +8,26 @@ MACOS_DIR="$SCRIPT_DIR"
 STEAD_DIR="$MACOS_DIR/Stead"
 
 echo "==> Building stead-ffi (Rust)..."
-cargo build --release -p stead-ffi --manifest-path "$RUST_DIR/Cargo.toml"
+CONFIGURATION="${1:-Debug}"
+if [ "$CONFIGURATION" = "Release" ]; then
+  CARGO_PROFILE_FLAG="--release"
+  RUST_LIB_DIR="$RUST_DIR/target/release"
+else
+  CARGO_PROFILE_FLAG=""
+  RUST_LIB_DIR="$RUST_DIR/target/debug"
+fi
+
+cargo build $CARGO_PROFILE_FLAG -p stead-ffi --manifest-path "$RUST_DIR/Cargo.toml"
 
 echo "==> Generating Swift bindings..."
-cargo run --release --bin uniffi-bindgen \
-    --manifest-path "$RUST_DIR/Cargo.toml" \
+(cd "$RUST_DIR" && cargo run --release --bin uniffi-bindgen \
+    --manifest-path "$RUST_DIR/Cargo.toml" -- \
     generate \
-    --library "$RUST_DIR/target/release/libstead_ffi.dylib" \
+    --library "$RUST_LIB_DIR/libstead_ffi.dylib" \
+    --crate stead_ffi \
     --language swift \
-    --out-dir "$STEAD_DIR/Sources/SteadFFI"
+    --out-dir "$STEAD_DIR/Sources/SteadFFI" \
+    --no-format)
 
 # Move headers to include directory
 mkdir -p "$STEAD_DIR/Sources/SteadFFI/include"
@@ -28,7 +39,6 @@ cd "$STEAD_DIR"
 xcodegen --quiet
 
 echo "==> Building Stead.app..."
-CONFIGURATION="${1:-Debug}"
 xcodebuild \
     -project Stead.xcodeproj \
     -scheme Stead \

@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct SteadApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var store = SteadStore()
 
     var body: some Scene {

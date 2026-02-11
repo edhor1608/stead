@@ -456,6 +456,7 @@ fileprivate struct FfiConverterString: FfiConverter {
 
 public struct FfiContract {
     public var id: String
+    public var projectPath: String
     public var task: String
     public var verification: String
     public var status: FfiContractStatus
@@ -468,8 +469,9 @@ public struct FfiContract {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(id: String, task: String, verification: String, status: FfiContractStatus, createdAt: String, completedAt: String?, output: String?, owner: String?, blockedBy: [String], blocks: [String]) {
+    public init(id: String, projectPath: String, task: String, verification: String, status: FfiContractStatus, createdAt: String, completedAt: String?, output: String?, owner: String?, blockedBy: [String], blocks: [String]) {
         self.id = id
+        self.projectPath = projectPath
         self.task = task
         self.verification = verification
         self.status = status
@@ -487,6 +489,9 @@ public struct FfiContract {
 extension FfiContract: Equatable, Hashable {
     public static func ==(lhs: FfiContract, rhs: FfiContract) -> Bool {
         if lhs.id != rhs.id {
+            return false
+        }
+        if lhs.projectPath != rhs.projectPath {
             return false
         }
         if lhs.task != rhs.task {
@@ -521,6 +526,7 @@ extension FfiContract: Equatable, Hashable {
 
     public func hash(into hasher: inout Hasher) {
         hasher.combine(id)
+        hasher.combine(projectPath)
         hasher.combine(task)
         hasher.combine(verification)
         hasher.combine(status)
@@ -542,6 +548,7 @@ public struct FfiConverterTypeFfiContract: FfiConverterRustBuffer {
         return
             try FfiContract(
                 id: FfiConverterString.read(from: &buf), 
+                projectPath: FfiConverterString.read(from: &buf), 
                 task: FfiConverterString.read(from: &buf), 
                 verification: FfiConverterString.read(from: &buf), 
                 status: FfiConverterTypeFfiContractStatus.read(from: &buf), 
@@ -556,6 +563,7 @@ public struct FfiConverterTypeFfiContract: FfiConverterRustBuffer {
 
     public static func write(_ value: FfiContract, into buf: inout [UInt8]) {
         FfiConverterString.write(value.id, into: &buf)
+        FfiConverterString.write(value.projectPath, into: &buf)
         FfiConverterString.write(value.task, into: &buf)
         FfiConverterString.write(value.verification, into: &buf)
         FfiConverterTypeFfiContractStatus.write(value.status, into: &buf)
@@ -1058,6 +1066,23 @@ fileprivate struct FfiConverterSequenceTypeFfiSessionSummary: FfiConverterRustBu
         return seq
     }
 }
+public func cancelContract(id: String, cwd: String)throws  -> FfiContract {
+    return try  FfiConverterTypeFfiContract.lift(try rustCallWithError(FfiConverterTypeFfiError.lift) {
+    uniffi_stead_ffi_fn_func_cancel_contract(
+        FfiConverterString.lower(id),
+        FfiConverterString.lower(cwd),$0
+    )
+})
+}
+public func claimContract(id: String, owner: String, cwd: String)throws  -> FfiContract {
+    return try  FfiConverterTypeFfiContract.lift(try rustCallWithError(FfiConverterTypeFfiError.lift) {
+    uniffi_stead_ffi_fn_func_claim_contract(
+        FfiConverterString.lower(id),
+        FfiConverterString.lower(owner),
+        FfiConverterString.lower(cwd),$0
+    )
+})
+}
 public func getContract(id: String, cwd: String)throws  -> FfiContract {
     return try  FfiConverterTypeFfiContract.lift(try rustCallWithError(FfiConverterTypeFfiError.lift) {
     uniffi_stead_ffi_fn_func_get_contract(
@@ -1082,6 +1107,14 @@ public func listSessions(cliFilter: String?, project: String?, limit: UInt32) ->
     )
 })
 }
+public func verifyContract(id: String, cwd: String)throws  -> FfiContract {
+    return try  FfiConverterTypeFfiContract.lift(try rustCallWithError(FfiConverterTypeFfiError.lift) {
+    uniffi_stead_ffi_fn_func_verify_contract(
+        FfiConverterString.lower(id),
+        FfiConverterString.lower(cwd),$0
+    )
+})
+}
 
 private enum InitializationResult {
     case ok
@@ -1098,6 +1131,12 @@ private var initializationResult: InitializationResult = {
     if bindings_contract_version != scaffolding_contract_version {
         return InitializationResult.contractVersionMismatch
     }
+    if (uniffi_stead_ffi_checksum_func_cancel_contract() != 61552) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_stead_ffi_checksum_func_claim_contract() != 27115) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_stead_ffi_checksum_func_get_contract() != 39411) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -1105,6 +1144,9 @@ private var initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_stead_ffi_checksum_func_list_sessions() != 8745) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_stead_ffi_checksum_func_verify_contract() != 12713) {
         return InitializationResult.apiChecksumMismatch
     }
 

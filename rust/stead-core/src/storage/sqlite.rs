@@ -13,6 +13,7 @@ const DB_FILE: &str = "stead.db";
 /// SQLite storage backend
 pub struct SqliteStorage {
     conn: Connection,
+    cwd: PathBuf,
 }
 
 impl SqliteStorage {
@@ -22,7 +23,10 @@ impl SqliteStorage {
         let db_path = dir.join(DB_FILE);
         let conn = Connection::open(&db_path)
             .map_err(|e| StorageError::Io(std::io::Error::other(e.to_string())))?;
-        let storage = Self { conn };
+        let storage = Self {
+            conn,
+            cwd: cwd.to_path_buf(),
+        };
         storage.init_schema()?;
         Ok(storage)
     }
@@ -36,7 +40,10 @@ impl SqliteStorage {
                 e.to_string(),
             ))
         })?;
-        let storage = Self { conn };
+        let storage = Self {
+            conn,
+            cwd: PathBuf::new(),
+        };
         storage.init_schema()?;
         Ok(storage)
     }
@@ -88,6 +95,12 @@ impl SqliteStorage {
 
 impl super::Storage for SqliteStorage {
     fn save_contract(&self, contract: &Contract) -> Result<(), StorageError> {
+        let project_path = if contract.project_path.is_empty() {
+            self.cwd.to_string_lossy().to_string()
+        } else {
+            contract.project_path.clone()
+        };
+
         self.conn
             .execute(
                 "INSERT INTO contracts (id, task, verify_cmd, status, output, created_at, completed_at, project_path, owner, blocked_by, blocks)
@@ -100,7 +113,7 @@ impl super::Storage for SqliteStorage {
                     contract.output,
                     contract.created_at.to_rfc3339(),
                     contract.completed_at.map(|dt| dt.to_rfc3339()),
-                    "",
+                    project_path,
                     contract.owner,
                     serde_json::to_string(&contract.blocked_by).unwrap_or_default(),
                     serde_json::to_string(&contract.blocks).unwrap_or_default(),
@@ -115,7 +128,7 @@ impl super::Storage for SqliteStorage {
     fn load_contract(&self, id: &str) -> Result<Option<Contract>, StorageError> {
         let mut stmt = self
             .conn
-            .prepare("SELECT id, task, verify_cmd, status, output, created_at, completed_at, owner, blocked_by, blocks FROM contracts WHERE id = ?1")
+            .prepare("SELECT id, project_path, task, verify_cmd, status, output, created_at, completed_at, owner, blocked_by, blocks FROM contracts WHERE id = ?1")
             .map_err(|e| StorageError::Io(std::io::Error::other(e.to_string())))?;
 
         let result = stmt
@@ -123,13 +136,18 @@ impl super::Storage for SqliteStorage {
             .optional()
             .map_err(|e| StorageError::Io(std::io::Error::other(e.to_string())))?;
 
-        Ok(result)
+        Ok(result.map(|mut c| {
+            if c.project_path.is_empty() {
+                c.project_path = self.cwd.to_string_lossy().to_string();
+            }
+            c
+        }))
     }
 
     fn load_all_contracts(&self) -> Result<Vec<Contract>, StorageError> {
         let mut stmt = self
             .conn
-            .prepare("SELECT id, task, verify_cmd, status, output, created_at, completed_at, owner, blocked_by, blocks FROM contracts ORDER BY created_at DESC")
+            .prepare("SELECT id, project_path, task, verify_cmd, status, output, created_at, completed_at, owner, blocked_by, blocks FROM contracts ORDER BY created_at DESC")
             .map_err(|e| StorageError::Io(std::io::Error::other(e.to_string())))?;
 
         let contracts = stmt
@@ -138,15 +156,31 @@ impl super::Storage for SqliteStorage {
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| StorageError::Io(std::io::Error::other(e.to_string())))?;
 
-        Ok(contracts)
+        let cwd_str = self.cwd.to_string_lossy().to_string();
+        Ok(contracts
+            .into_iter()
+            .map(|mut c| {
+                if c.project_path.is_empty() {
+                    c.project_path = cwd_str.clone();
+                }
+                c
+            })
+            .collect())
     }
 
     fn update_contract(&self, contract: &Contract) -> Result<(), StorageError> {
+        let project_path = if contract.project_path.is_empty() {
+            self.cwd.to_string_lossy().to_string()
+        } else {
+            contract.project_path.clone()
+        };
+
         let rows = self
             .conn
             .execute(
-                "UPDATE contracts SET task = ?1, verify_cmd = ?2, status = ?3, output = ?4, completed_at = ?5, owner = ?6, blocked_by = ?7, blocks = ?8 WHERE id = ?9",
+                "UPDATE contracts SET project_path = ?1, task = ?2, verify_cmd = ?3, status = ?4, output = ?5, completed_at = ?6, owner = ?7, blocked_by = ?8, blocks = ?9 WHERE id = ?10",
                 params![
+                    project_path,
                     contract.task,
                     contract.verification,
                     contract.status.to_string(),
@@ -171,7 +205,7 @@ impl super::Storage for SqliteStorage {
     fn filter_by_status(&self, status: &str) -> Result<Vec<Contract>, StorageError> {
         let mut stmt = self
             .conn
-            .prepare("SELECT id, task, verify_cmd, status, output, created_at, completed_at, owner, blocked_by, blocks FROM contracts WHERE status = ?1 ORDER BY created_at DESC")
+            .prepare("SELECT id, project_path, task, verify_cmd, status, output, created_at, completed_at, owner, blocked_by, blocks FROM contracts WHERE status = ?1 ORDER BY created_at DESC")
             .map_err(|e| StorageError::Io(std::io::Error::other(e.to_string())))?;
 
         let contracts = stmt
@@ -180,25 +214,35 @@ impl super::Storage for SqliteStorage {
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| StorageError::Io(std::io::Error::other(e.to_string())))?;
 
-        Ok(contracts)
+        let cwd_str = self.cwd.to_string_lossy().to_string();
+        Ok(contracts
+            .into_iter()
+            .map(|mut c| {
+                if c.project_path.is_empty() {
+                    c.project_path = cwd_str.clone();
+                }
+                c
+            })
+            .collect())
     }
 }
 
 /// Parse a rusqlite Row into a Contract
 fn row_to_contract(row: &rusqlite::Row) -> rusqlite::Result<Contract> {
     let id: String = row.get(0)?;
-    let task: String = row.get(1)?;
-    let verification: String = row.get(2)?;
-    let status_str: String = row.get(3)?;
-    let output: Option<String> = row.get(4)?;
-    let created_at_str: String = row.get(5)?;
-    let completed_at_str: Option<String> = row.get(6)?;
-    let owner: Option<String> = row.get(7)?;
+    let project_path: String = row.get::<_, Option<String>>(1)?.unwrap_or_default();
+    let task: String = row.get(2)?;
+    let verification: String = row.get(3)?;
+    let status_str: String = row.get(4)?;
+    let output: Option<String> = row.get(5)?;
+    let created_at_str: String = row.get(6)?;
+    let completed_at_str: Option<String> = row.get(7)?;
+    let owner: Option<String> = row.get(8)?;
     let blocked_by_str: String = row
-        .get::<_, Option<String>>(8)?
+        .get::<_, Option<String>>(9)?
         .unwrap_or_else(|| "[]".to_string());
     let blocks_str: String = row
-        .get::<_, Option<String>>(9)?
+        .get::<_, Option<String>>(10)?
         .unwrap_or_else(|| "[]".to_string());
 
     let status = status_str
@@ -220,6 +264,7 @@ fn row_to_contract(row: &rusqlite::Row) -> rusqlite::Result<Contract> {
 
     Ok(Contract {
         id,
+        project_path,
         task,
         verification,
         status,

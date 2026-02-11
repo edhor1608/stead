@@ -1,5 +1,7 @@
 import Foundation
 import SwiftUI
+import AppKit
+import UserNotifications
 
 // MARK: - App-level types wrapping FFI
 
@@ -64,6 +66,7 @@ enum ContractStatus: String, CaseIterable {
 
 struct ContractItem: Identifiable {
     let id: String
+    let projectPath: String
     let task: String
     let verification: String
     let status: ContractStatus
@@ -76,6 +79,7 @@ struct ContractItem: Identifiable {
 
     init(ffi: FfiContract) {
         self.id = ffi.id
+        self.projectPath = ffi.projectPath
         self.task = ffi.task
         self.verification = ffi.verification
         self.status = {
@@ -155,9 +159,29 @@ class SteadStore: ObservableObject {
     @Published var selectedTab: Tab = .contracts
     @Published var errorMessage: String?
 
+    private var watchers: [FileWatcher] = []
+    private var lastStatusByContractId: [String: ContractStatus] = [:]
+    private var notificationAuthRequested = false
+
+    private let defaults = UserDefaults.standard
+    private let rootsKey = "stead.workspaceRoots"
+    private let ownerKey = "stead.ownerName"
+    private let maxDepthKey = "stead.discoveryMaxDepth"
+
+    private(set) var workspaceRoots: [String]
+    private(set) var discoveryMaxDepth: Int
+    private(set) var ownerName: String
+
     enum Tab {
         case contracts
         case sessions
+    }
+
+    init() {
+        self.workspaceRoots = defaults.stringArray(forKey: rootsKey) ?? SteadStore.defaultWorkspaceRoots()
+        self.discoveryMaxDepth = defaults.object(forKey: maxDepthKey) as? Int ?? 4
+        self.ownerName = defaults.string(forKey: ownerKey) ?? NSFullUserName()
+        requestNotificationAuthorizationIfNeeded()
     }
 
     func refresh() {
@@ -166,20 +190,64 @@ class SteadStore: ObservableObject {
     }
 
     func loadContracts() {
-        let cwd = FileManager.default.currentDirectoryPath
-        do {
-            let ffiContracts = try listContracts(cwd: cwd)
-            contracts = ffiContracts.map { ContractItem(ffi: $0) }
-            errorMessage = nil
-        } catch {
-            contracts = []
-            errorMessage = "Failed to load contracts: \(error.localizedDescription)"
+        let projectPaths = discoverSteadProjects(roots: workspaceRoots, maxDepth: discoveryMaxDepth)
+
+        var newContracts: [ContractItem] = []
+        var errors: [String] = []
+        for projectPath in projectPaths {
+            do {
+                let ffiContracts = try listContracts(cwd: projectPath)
+                newContracts.append(contentsOf: ffiContracts.map { ContractItem(ffi: $0) })
+            } catch {
+                // Keep going; one broken DB shouldn't blank the whole Control Room.
+                errors.append("Failed to load contracts for \(projectPath): \(error.localizedDescription)")
+            }
         }
+
+        // Fire notifications on status transitions before swapping state.
+        postNotificationsIfNeeded(next: newContracts)
+
+        contracts = newContracts
+        errorMessage = errors.isEmpty ? nil : errors.joined(separator: "\n")
+
+        // Keep file watchers aligned with what we're displaying.
+        rebuildWatchers(projectPaths: projectPaths)
     }
 
     func loadSessions() {
         let ffiSessions = listSessions(cliFilter: nil, project: nil, limit: 50)
         sessions = ffiSessions.map { SessionItem(ffi: $0) }
+    }
+
+    func claim(contract: ContractItem) {
+        do {
+            _ = try claimContract(id: contract.id, owner: ownerName, cwd: contract.projectPath)
+            refresh()
+        } catch {
+            errorMessage = "Failed to claim contract: \(error.localizedDescription)"
+        }
+    }
+
+    func cancel(contract: ContractItem) {
+        do {
+            _ = try cancelContract(id: contract.id, cwd: contract.projectPath)
+            refresh()
+        } catch {
+            errorMessage = "Failed to cancel contract: \(error.localizedDescription)"
+        }
+    }
+
+    func verify(contract: ContractItem) {
+        do {
+            _ = try verifyContract(id: contract.id, cwd: contract.projectPath)
+            refresh()
+        } catch {
+            errorMessage = "Failed to verify contract: \(error.localizedDescription)"
+        }
+    }
+
+    func openProject(for contract: ContractItem) {
+        ContextRestore.openProject(path: contract.projectPath)
     }
 
     /// Contracts grouped by attention priority
@@ -200,6 +268,186 @@ class SteadStore: ObservableObject {
         return CliType.allCases.compactMap { cli in
             guard let items = grouped[cli], !items.isEmpty else { return nil }
             return (cli, items)
+        }
+    }
+
+    private static func defaultWorkspaceRoots() -> [String] {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let candidates = [
+            "\(home)/repos",
+            "\(home)/Projects",
+            home,
+        ]
+        return candidates.filter { FileManager.default.fileExists(atPath: $0) }
+    }
+
+    private func discoverSteadProjects(roots: [String], maxDepth: Int) -> [String] {
+        var out: [String] = []
+        var seen: Set<String> = []
+
+        for root in roots {
+            walkDir(path: root, depth: maxDepth, out: &out, seen: &seen)
+        }
+
+        return out.sorted()
+    }
+
+    private func walkDir(path: String, depth: Int, out: inout [String], seen: inout Set<String>) {
+        guard depth >= 0 else { return }
+
+        // If this directory is a Stead project, record it and do not recurse further.
+        let dbPath = (path as NSString).appendingPathComponent(".stead/stead.db")
+        if FileManager.default.fileExists(atPath: dbPath) {
+            if !seen.contains(path) {
+                seen.insert(path)
+                out.append(path)
+            }
+            return
+        }
+
+        guard depth > 0 else { return }
+
+        let denylist: Set<String> = [".git", "node_modules", "target", ".build", "dist", "build", ".venv", "venv", "DerivedData"]
+        guard let entries = try? FileManager.default.contentsOfDirectory(atPath: path) else { return }
+
+        for name in entries {
+            if denylist.contains(name) { continue }
+            let child = (path as NSString).appendingPathComponent(name)
+
+            var isDir: ObjCBool = false
+            if FileManager.default.fileExists(atPath: child, isDirectory: &isDir), isDir.boolValue {
+                walkDir(path: child, depth: depth - 1, out: &out, seen: &seen)
+            }
+        }
+    }
+
+    private func rebuildWatchers(projectPaths: [String]) {
+        watchers.removeAll()
+
+        for projectPath in projectPaths {
+            let steadDir = (projectPath as NSString).appendingPathComponent(".stead")
+            let dbPath = (steadDir as NSString).appendingPathComponent("stead.db")
+            let walPath = dbPath + "-wal"
+            let shmPath = dbPath + "-shm"
+
+            for path in [steadDir, dbPath, walPath, shmPath] {
+                let watcher = FileWatcher(path: path) { [weak self] in
+                    Task { @MainActor in
+                        self?.refresh()
+                    }
+                }
+                if watcher != nil {
+                    watchers.append(watcher!)
+                }
+            }
+        }
+    }
+
+    private func requestNotificationAuthorizationIfNeeded() {
+        guard !notificationAuthRequested else { return }
+        notificationAuthRequested = true
+
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in
+            // Ignore; we'll just not post if permission denied.
+        }
+    }
+
+    private func postNotificationsIfNeeded(next: [ContractItem]) {
+        let center = UNUserNotificationCenter.current()
+
+        var nextStatusById: [String: ContractStatus] = [:]
+        for c in next {
+            nextStatusById[c.id] = c.status
+        }
+
+        for c in next {
+            let prev = lastStatusByContractId[c.id]
+            if prev == nil {
+                continue
+            }
+
+            // Notify on transitions into terminal outcome states.
+            if (c.status == .completed || c.status == .failed),
+               prev != c.status
+            {
+                let content = UNMutableNotificationContent()
+                let projectName = URL(fileURLWithPath: c.projectPath).lastPathComponent
+                content.title = "\(projectName): \(c.status.rawValue)"
+                content.body = c.task
+                content.sound = .default
+                content.userInfo = [
+                    "contractId": c.id,
+                    "projectPath": c.projectPath,
+                ]
+
+                let request = UNNotificationRequest(
+                    identifier: "contract-\(c.id)-\(c.status.rawValue)",
+                    content: content,
+                    trigger: nil
+                )
+
+                center.add(request)
+            }
+        }
+
+        lastStatusByContractId = nextStatusById
+    }
+}
+
+final class FileWatcher {
+    private let fd: Int32
+    private let source: DispatchSourceFileSystemObject
+
+    init?(path: String, onChange: @escaping () -> Void) {
+        fd = open(path, O_EVTONLY)
+        if fd < 0 {
+            return nil
+        }
+
+        source = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: fd,
+            eventMask: [.write, .rename, .delete, .extend, .attrib, .link, .revoke],
+            queue: DispatchQueue.global(qos: .utility)
+        )
+
+        // Debounce bursts (SQLite WAL can be chatty).
+        var pending = false
+        source.setEventHandler {
+            if pending { return }
+            pending = true
+            DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 0.25) {
+                pending = false
+                onChange()
+            }
+        }
+
+        source.setCancelHandler { [fd] in
+            close(fd)
+        }
+
+        source.resume()
+    }
+
+    deinit {
+        source.cancel()
+    }
+}
+
+enum ContextRestore {
+    static func openProject(path: String) {
+        let url = URL(fileURLWithPath: path)
+        NSWorkspace.shared.open(url)
+
+        // Terminal
+        let terminalUrl = URL(fileURLWithPath: "/System/Applications/Utilities/Terminal.app")
+        if FileManager.default.fileExists(atPath: terminalUrl.path) {
+            NSWorkspace.shared.open([url], withApplicationAt: terminalUrl, configuration: NSWorkspace.OpenConfiguration(), completionHandler: nil)
+        }
+
+        // VS Code (best-effort)
+        let vscodeUrl = URL(fileURLWithPath: "/Applications/Visual Studio Code.app")
+        if FileManager.default.fileExists(atPath: vscodeUrl.path) {
+            NSWorkspace.shared.open([url], withApplicationAt: vscodeUrl, configuration: NSWorkspace.OpenConfiguration(), completionHandler: nil)
         }
     }
 }

@@ -14,11 +14,24 @@ struct ContentView: View {
             .listStyle(.sidebar)
             .frame(minWidth: 160)
         } detail: {
-            switch store.selectedTab {
-            case .contracts:
-                ContractListView(store: store)
-            case .sessions:
-                SessionListView(store: store)
+            ZStack(alignment: .topLeading) {
+                switch store.selectedTab {
+                case .contracts:
+                    ContractListView(store: store)
+                case .sessions:
+                    SessionListView(store: store)
+                }
+
+                if let error = store.errorMessage, !error.isEmpty {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.white)
+                        .padding(8)
+                        .background(.red.opacity(0.85))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .padding()
+                        .textSelection(.enabled)
+                }
             }
         }
         .toolbar {

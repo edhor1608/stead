@@ -37,6 +37,7 @@ targets:
           - $(SRCROOT)/Sources/SteadFFI/include
       configs:
         Debug:
+          ENABLE_DEBUG_DYLIB: NO
           LIBRARY_SEARCH_PATHS:
             - $(inherited)
             - $(SRCROOT)/../../rust/target/debug

@@ -1,5 +1,6 @@
 //! Run command - create and execute a contract
 
+use crate::cli::RunEngine;
 use crate::schema::Contract;
 use crate::storage::{self, Storage};
 use anyhow::{Context, Result};
@@ -7,27 +8,36 @@ use std::path::Path;
 use std::process::Command;
 
 /// Execute the run command
-pub fn execute(task: &str, verify_cmd: &str, json_output: bool) -> Result<()> {
+pub fn execute(task: &str, verify_cmd: &str, engine: RunEngine, json_output: bool) -> Result<()> {
     let cwd = std::env::current_dir()?;
     let db = storage::sqlite::open_default(&cwd)?;
-    execute_with_storage(task, verify_cmd, json_output, &db)
+    execute_with_storage(task, verify_cmd, engine, json_output, &cwd, &db)
 }
 
 /// Execute with explicit working directory (for testing)
-pub fn execute_with_cwd(task: &str, verify_cmd: &str, json_output: bool, cwd: &Path) -> Result<()> {
+pub fn execute_with_cwd(
+    task: &str,
+    verify_cmd: &str,
+    engine: RunEngine,
+    json_output: bool,
+    cwd: &Path,
+) -> Result<()> {
     let db = storage::sqlite::open_default(cwd)?;
-    execute_with_storage(task, verify_cmd, json_output, &db)
+    execute_with_storage(task, verify_cmd, engine, json_output, cwd, &db)
 }
 
 /// Execute with a specific storage backend
 pub fn execute_with_storage(
     task: &str,
     verify_cmd: &str,
+    engine: RunEngine,
     json_output: bool,
+    cwd: &Path,
     storage: &dyn Storage,
 ) -> Result<()> {
     // Create contract (Pending)
     let mut contract = Contract::new(task, verify_cmd);
+    contract.project_path = cwd.to_string_lossy().to_string();
     storage.save_contract(&contract)?;
 
     if !json_output {
@@ -44,15 +54,15 @@ pub fn execute_with_storage(
         println!("Executing task...");
     }
 
-    // Execute claude with the task
-    let claude_result = spawn_claude(task);
-    let claude_error = match &claude_result {
+    // Execute the selected engine with the task (best-effort; verification decides PASS/FAIL)
+    let engine_result = spawn_engine(engine, task, cwd);
+    let engine_error = match &engine_result {
         Ok(()) => None,
         Err(e) => {
             if !json_output {
-                eprintln!("Warning: Claude execution failed: {}", e);
+                eprintln!("Warning: Execution failed: {}", e);
             }
-            Some(format!("[Claude failed: {}]", e))
+            Some(format!("[Engine failed: {}]", e))
         }
     };
 
@@ -67,8 +77,8 @@ pub fn execute_with_storage(
     // Run verification
     let (passed, output) = run_verification(verify_cmd)?;
 
-    // Combine Claude error with verification output
-    let combined_output = match (claude_error, output) {
+    // Combine engine error with verification output
+    let combined_output = match (engine_error, output) {
         (Some(err), Some(out)) => Some(format!("{}\n{}", err, out)),
         (Some(err), None) => Some(err),
         (None, out) => out,
@@ -96,16 +106,39 @@ pub fn execute_with_storage(
     Ok(())
 }
 
-/// Spawn claude with the task
-fn spawn_claude(task: &str) -> Result<()> {
-    let output = Command::new("claude")
-        .args(["-p", task])
+fn spawn_engine(engine: RunEngine, task: &str, cwd: &Path) -> Result<()> {
+    if let RunEngine::None = engine {
+        return Ok(());
+    }
+
+    let mut cmd = match engine {
+        RunEngine::Claude => {
+            let mut c = Command::new("claude");
+            c.args(["-p", task]);
+            c
+        }
+        RunEngine::Codex => {
+            let mut c = Command::new("codex");
+            // Non-interactive run; keep it repo-scoped.
+            c.args(["exec", "-C"]).arg(cwd).arg(task);
+            c
+        }
+        RunEngine::OpenCode => {
+            let mut c = Command::new("opencode");
+            c.args(["run", task]);
+            c
+        }
+        RunEngine::None => unreachable!(),
+    };
+
+    cmd.current_dir(cwd);
+    let output = cmd
         .output()
-        .context("Failed to execute claude")?;
+        .with_context(|| format!("Failed to execute engine: {:?}", engine))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        anyhow::bail!("Claude exited with error: {}", stderr);
+        anyhow::bail!("Engine exited with error: {}", stderr);
     }
 
     Ok(())
