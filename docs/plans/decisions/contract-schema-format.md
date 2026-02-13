@@ -1,5 +1,15 @@
 # Decision: Contract Schema Format
 
+> Status: Superseded (storage sections) on 2026-02-13.
+>
+> Superseded by:
+> - `docs/plans/planning-baseline-2026-02-13.md`
+> - `docs/plans/canonical-decisions-2026-02-11.md`
+>
+> Reason:
+> - Core schema thinking remains useful historical context.
+> - JSONL-as-runtime-storage statements are obsolete; SQLite is the canonical runtime store.
+
 ## Context
 
 Contracts are stead's core abstraction for agent work. They define:

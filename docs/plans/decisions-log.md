@@ -1,5 +1,9 @@
 # Decisions Log
 
+> Note: This is a chronological historical log.
+> Some entries are intentionally superseded by newer decisions.
+> For current planning truth, start with `docs/plans/planning-baseline-2026-02-13.md`.
+
 ## 2026-02-02: Project Inception
 
 **Context:** Theo's article about parallel project cognitive overhead resonated. Jonas experiences this daily with 5+ active repos.

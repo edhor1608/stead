@@ -90,6 +90,14 @@ All business logic lives in `stead-core`. The CLI and FFI are thin wrappers.
 
 **Storage:** SQLite database at `.stead/stead.db` per project, with automatic migration from legacy JSONL format.
 
+## Documentation Authority
+
+To avoid conflicting interpretation across planning docs:
+
+1. Aggregated planning baseline: `docs/plans/planning-baseline-2026-02-13.md`
+2. Canonical concept decisions: `docs/plans/canonical-decisions-2026-02-11.md`
+3. Cross-doc precedence rules: `docs/plans/docs-authority-map.md`
+
 ## CLI Reference
 
 | Command | Description |

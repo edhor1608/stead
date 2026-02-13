@@ -35,6 +35,8 @@ docs/
 
 - `docs/research/problem-analysis.md` - Core problem breakdown
 - `docs/plans/decisions-log.md` - ADR-style decision tracking
+- `docs/plans/canonical-decisions-2026-02-11.md` - Canonical concept-level decisions
+- `docs/plans/docs-authority-map.md` - Documentation precedence rules
 - `rust/README.md` - Rust workspace details, build/test instructions
 
 ## Context

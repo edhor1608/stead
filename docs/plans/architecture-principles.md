@@ -240,7 +240,7 @@ Not an OS in the kernel sense, but in the "environment that coordinates resource
 
 1. **stead-core library** — contract engine, USF adapters, SQLite storage (Rust)
 2. **stead-cli** — command-line interface using stead-core
-3. **stead-ffi** — FFI bindings for native UIs (swift-bridge/UniFFI)
+3. **stead-ffi** — FFI bindings for native UIs (UniFFI)
 4. **Control Room (macOS)** — SwiftUI app using stead-core via FFI
 5. **Control Room (other platforms)** — later, if needed
 
@@ -260,7 +260,7 @@ Everything runs locally on one device. The Rust library (stead-core) is the brai
 │   (SwiftUI)     │  │  (future)       │  │   (future)      │
 └────────┬────────┘  └────────┬────────┘  └────────┬────────┘
          │                    │                    │
-         └────────── FFI (swift-bridge/UniFFI) ────┘
+         └────────── FFI (UniFFI) ────┘
                               │
                     ┌─────────▼─────────┐
                     │   stead-core      │

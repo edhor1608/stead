@@ -1,6 +1,6 @@
 # Universal Session Format
 
-**Status:** Proposal
+**Status:** Partially implemented (read adapters complete; write/round-trip/orchestration still proposal)
 **Traces to:** Control Room (unified view), Context Generator (sessions as memory)
 
 ## Problem

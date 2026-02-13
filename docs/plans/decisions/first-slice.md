@@ -1,5 +1,16 @@
 # Decision: First Slice
 
+> Status: Historical / Superseded on 2026-02-13.
+>
+> Superseded by:
+> - `docs/plans/planning-baseline-2026-02-13.md`
+> - `README.md`
+> - `docs/plans/phase2-revised.md`
+>
+> Reason:
+> - This captures the original first-slice scope and rationale.
+> - Implementation details in this doc (YAML/JSONL-first runtime assumptions) no longer represent current runtime architecture.
+
 > **Historical Note:** The first slice was initially implemented in TypeScript/Bun (v1, merged February 2026). This document has been updated to reflect the v2 rewrite in Rust. The scope and success criteria remain valid; only the implementation technology changed.
 
 ## Context

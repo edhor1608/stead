@@ -6,11 +6,11 @@
 
 ## Current State
 
-- **88 tests passing** (72 unit + 16 integration)
+- **114 tests passing** (98 unit + 16 integration)
 - Unit tests are `#[cfg(test)]` inline modules in each source file
 - Integration tests in `rust/tests/integration.rs` using `assert_cmd` + `predicates`
 - Dev dependencies: `tempfile`, `assert_cmd`, `predicates`
-- No CI pipeline yet
+- CI pipeline exists at `.github/workflows/ci.yml` (fmt, clippy, tests, release build)
 - No code coverage tooling
 - No property-based testing
 - No fuzz testing
@@ -355,7 +355,7 @@ Before any milestone is merged to `main`:
 
 ### M2 Gate (Library Split)
 
-- [ ] `cargo test --workspace` passes (all 88 tests)
+- [ ] `cargo test --workspace` passes (all 114 tests)
 - [ ] `stead list` still works from compiled binary
 - [ ] `stead session list` still works
 - [ ] No public API regression (same functions available)
