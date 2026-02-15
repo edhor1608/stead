@@ -356,6 +356,135 @@ See: `docs/plans/universal-session-format.md`
 
 ---
 
+## 2026-02-14: Rewrite Branch (`rewrite/v1`) M0-M4 Lock
+
+**Context:** We restarted implementation on a clean modular Rust workspace with strict TDD checkpoints per slice and explicit goal to make subsystems exportable as standalone GitHub projects.
+
+**Decision:** Keep canonical concepts, but enforce them as isolated crates with hard test boundaries:
+- `stead-contracts`: 10-state lifecycle engine + typed transition errors + actor permissions + SQLite snapshot/event store.
+- `stead-daemon`: versioned command envelope, typed error contract, cursor-based event replay.
+- `stead-resources`: standalone resource claim/release registry with deterministic negotiation and escalation-only failure surfacing.
+
+**Rationale:**
+- Preserves concept truth (lifecycle, supervision projection, agent coordination) while making each subsystem reusable.
+- Maintains a strict "engine truth first, adapters second" layering for CLI/macOS/app clients.
+- Allows incremental replacement of legacy paths without blocking testable progress.
+
+**Key policy lock for resource negotiation:**
+- Port conflicts are resolved silently by assigning the **lowest available next port** (`requested+1` upward) within configured range.
+- If no port is available, emit explicit escalation event (`port_range_exhausted`) for attention surfaces.
+
+**Consequences:**
+- M0-M4 slices are implemented with failing tests first and crate/workspace green checkpoints.
+- Daemon now supports built-in resource contention handling and escalation event streaming.
+- Modular crates are now package-metadata-complete for separate publication paths.
+
+---
+
+## 2026-02-14: Rewrite Branch (`rewrite/v1`) M5 USF Adapter Contract
+
+**Context:** The rewrite requires USF as a reusable abstraction layer, decoupled from concrete CLIs while preserving conformance across Claude Code, Codex CLI, and OpenCode.
+
+**Decision:** Implement `stead-usf` as a standalone adapter + query crate with locked fixture conformance tests per CLI.
+
+**Rationale:**
+- Keeps CLI/tool specifics behind adapter boundaries.
+- Makes cross-tool control room consumption deterministic and testable.
+- Supports exporting USF as an independent open-source module.
+
+**Locked behavior:**
+- Each adapter maps its source fixture shape to a canonical `SessionRecord`.
+- Unified query contract supports deterministic sort (`updated_at desc`, `id asc`) plus CLI/text filters.
+- Corrupt/partial inputs return typed errors (`invalid_json` or `invalid_format`) instead of panics.
+
+**Consequences:**
+- `stead-usf` now ships fixture-backed tests for conformance, listing contract, and resilience.
+- The crate can be consumed independently from `stead-core` legacy USF code.
+
+---
+
+## 2026-02-14: Rewrite Branch (`rewrite/v1`) M6-M7 Optional Modules
+
+**Context:** Session proxy and context generator are optional modules but must be enabled by default and must not weaken core guarantees.
+
+**Decision:** Implement both in `stead-module-sdk` with explicit contracts and deterministic fallback behavior.
+
+**Rationale:**
+- Keeps module behavior reusable outside the main runtime.
+- Gives a stable SDK boundary for daemon/client integration later.
+- Preserves "core remains stable even when optional modules are toggled."
+
+**Locked behavior (M6):**
+- Session identities are project-scoped and unique per creation.
+- Tokens are valid only in their original project boundary.
+- Destroying an identity invalidates only that identity.
+- Module manager enables `session_proxy` and `context_generator` by default.
+- Disabling `session_proxy` gates that module only; core operations remain unaffected.
+
+**Locked behavior (M7):**
+- Context assembly is deterministic from sorted source fragments.
+- Provider contract supports primary + fallback providers.
+- Generated output includes provenance citations and confidence score.
+- When providers are unavailable/failed, deterministic local fallback is returned.
+
+**Consequences:**
+- `stead-module-sdk` now has fixture-free deterministic tests for isolation, lifecycle, toggling, provider fallback, provenance, and backend-unavailable fallback.
+- Optional-module semantics are formalized before daemon/CLI wiring.
+
+---
+
+## 2026-02-14: Rewrite Branch (`rewrite/v1`) M8-S1 Status-First CLI Entry
+
+**Context:** Canonical decision requires bare `stead` to act as supervision entry point. Existing CLI required a subcommand and defaulted to help/error.
+
+**Decision:** Add status-first default path in `stead-cli`:
+- `stead` prints a status overview.
+- `stead --json` prints machine-readable status JSON.
+- Both call daemon `Health` endpoint (daemon-backed default path).
+
+**Rationale:**
+- Aligns CLI entry behavior with control-room supervision loop.
+- Keeps subcommand workflows intact while enabling low-friction "what needs attention now?" checks.
+
+**Consequences:**
+- New integration tests lock default text/JSON behavior.
+- CLI now depends on `stead-daemon` for default status path.
+- Existing command suites remain green.
+
+---
+
+## 2026-02-15: Rewrite Branch (`rewrite/v1`) M8-S2 Grouped CLI Surface Cutover
+
+**Context:** The rewrite direction is no backward-facing command surface. Status-first entry (M8-S1) was in place, but top-level legacy verbs were still scaffolded.
+
+**Decision:** Replace CLI parser/dispatch with grouped command families only:
+- `contract`
+- `session`
+- `resource`
+- `attention`
+- `context`
+- `module`
+- `daemon`
+
+**Rationale:**
+- Aligns CLI shape with concept-level architecture (daemon-backed control plane + modular capabilities).
+- Removes accidental coupling to older command model.
+- Gives stable machine-facing surface per family for further iteration.
+
+**Implementation notes:**
+- Contract list + attention counts promoted into daemon API (`ListContracts`, `AttentionStatus`).
+- Resource lease state made durable across CLI invocations (`resources.json`) so negotiation semantics hold outside a long-lived process.
+- Session parse path now routes through standalone `stead-usf`.
+- Context generation path now routes through `stead-module-sdk` contracts.
+- Module enable/disable/list now managed via `.stead/modules.json`.
+
+**Consequences:**
+- New grouped CLI integration tests are canonical for command-family behavior.
+- Old top-level verbs are removed from CLI parser.
+- Full workspace fmt/tests are green after cutover.
+
+---
+
 ## Open Decisions
 
 ### Naming
