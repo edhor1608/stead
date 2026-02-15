@@ -1,0 +1,17 @@
+[package]
+name = "stead-daemon"
+version = "0.1.0"
+edition = "2024"
+description = "Daemon API and event stream layer for Stead runtime control."
+license = "MIT"
+repository = "https://github.com/edhor1608/stead"
+readme = "README.md"
+
+[dependencies]
+stead-contracts = { path = "../stead-contracts" }
+stead-resources = { path = "../stead-resources" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[dev-dependencies]
+tempfile = "3"

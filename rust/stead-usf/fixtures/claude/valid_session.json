@@ -1,0 +1,10 @@
+{
+  "session_id": "claude-s-001",
+  "project_path": "/tmp/project-alpha",
+  "updated_at": 1700001000,
+  "messages": [
+    {"role": "system", "content": "You are helpful."},
+    {"role": "user", "content": "Implement auth middleware"},
+    {"role": "assistant", "content": "Done. Added middleware."}
+  ]
+}

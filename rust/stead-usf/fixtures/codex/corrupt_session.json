@@ -1,0 +1,8 @@
+{
+  "id": "codex-corrupt",
+  "cwd": "/tmp/project-broken",
+  "last_updated": 1700002000,
+  "events": [
+    {"type": "user", "text": "broken"
+  ]
+}

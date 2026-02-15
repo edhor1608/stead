@@ -1,0 +1,11 @@
+{
+  "meta": {
+    "session": "opencode-s-77",
+    "project": "/tmp/project-gamma",
+    "updated": 1700003000
+  },
+  "transcript": [
+    {"speaker": "assistant", "message": "Ready."},
+    {"speaker": "user", "message": "Add health endpoint"}
+  ]
+}
