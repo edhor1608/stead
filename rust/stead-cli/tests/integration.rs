@@ -508,6 +508,102 @@ fn test_session_group_list_ignores_corrupt_files() {
 }
 
 #[test]
+fn test_session_endpoint_returns_null_when_session_proxy_module_disabled() {
+    let tmp = TempDir::new().unwrap();
+
+    stead()
+        .args(["module", "disable", "session_proxy"])
+        .current_dir(tmp.path())
+        .assert()
+        .success();
+
+    let output = stead()
+        .args([
+            "--json",
+            "session",
+            "endpoint",
+            "--project",
+            "/workspace/project-alpha",
+            "--owner",
+            "agent-a",
+        ])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert!(json.is_null());
+}
+
+#[test]
+fn test_session_endpoint_is_deterministic_per_project_and_negotiates_across_projects() {
+    let tmp = TempDir::new().unwrap();
+
+    let alpha_first = stead()
+        .args([
+            "--json",
+            "session",
+            "endpoint",
+            "--project",
+            "/workspace/project-alpha",
+            "--owner",
+            "agent-a",
+        ])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    assert!(alpha_first.status.success());
+
+    let alpha_json: serde_json::Value = serde_json::from_slice(&alpha_first.stdout).unwrap();
+    assert!(alpha_json.get("lease").is_some());
+
+    let alpha_second = stead()
+        .args([
+            "--json",
+            "session",
+            "endpoint",
+            "--project",
+            "/workspace/project-alpha",
+            "--owner",
+            "agent-a",
+        ])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    assert!(alpha_second.status.success());
+
+    let alpha_second_json: serde_json::Value = serde_json::from_slice(&alpha_second.stdout).unwrap();
+    assert_eq!(
+        alpha_json["lease"]["name"],
+        alpha_second_json["lease"]["name"]
+    );
+    assert_eq!(
+        alpha_json["lease"]["port"],
+        alpha_second_json["lease"]["port"]
+    );
+
+    let beta = stead()
+        .args([
+            "--json",
+            "session",
+            "endpoint",
+            "--project",
+            "/workspace/project-beta",
+            "--owner",
+            "agent-b",
+        ])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    assert!(beta.status.success());
+
+    let beta_json: serde_json::Value = serde_json::from_slice(&beta.stdout).unwrap();
+    assert_ne!(alpha_json["lease"]["name"], beta_json["lease"]["name"]);
+    assert_ne!(alpha_json["lease"]["port"], beta_json["lease"]["port"]);
+}
+
+#[test]
 fn test_session_list_under_target_load_is_below_200ms() {
     let tmp = TempDir::new().unwrap();
     let sessions_root = tmp.path().join(".stead").join("sessions");

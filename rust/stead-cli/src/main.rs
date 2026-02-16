@@ -89,6 +89,12 @@ enum SessionCommand {
         #[arg(long)]
         query: Option<String>,
     },
+    Endpoint {
+        #[arg(long)]
+        project: String,
+        #[arg(long)]
+        owner: String,
+    },
     Parse {
         #[arg(long)]
         cli: String,
@@ -532,6 +538,47 @@ fn handle_session(command: SessionCommand, json_output: bool) -> Result<()> {
                 }
             }
         }
+        SessionCommand::Endpoint { project, owner } => {
+            let config = load_module_config()?;
+            if !config.session_proxy {
+                if json_output {
+                    println!("null");
+                } else {
+                    println!("session_proxy module is disabled");
+                }
+                return Ok(());
+            }
+
+            let daemon = daemon_from_cwd()?;
+            let endpoint_name = endpoint_name_from_project(&project);
+            let response = match daemon_handle_raw(
+                &daemon,
+                ApiRequest::ClaimEndpoint {
+                    name: endpoint_name,
+                    owner,
+                    port: None,
+                },
+            ) {
+                Ok(response) => response,
+                Err(error) => return render_daemon_error(error, json_output),
+            };
+            let claim = match response {
+                ApiResponse::EndpointClaim(claim) => claim,
+                _ => bail!("invalid session endpoint response"),
+            };
+
+            if json_output {
+                println!("{}", endpoint_claim_to_json(&claim));
+            } else {
+                match claim {
+                    EndpointClaimResult::Claimed(lease) => println!("{}", lease.url()),
+                    EndpointClaimResult::Negotiated { assigned, .. } => {
+                        println!("{}", assigned.url())
+                    }
+                    EndpointClaimResult::Conflict(conflict) => println!("conflict {}", conflict.name),
+                }
+            }
+        }
         SessionCommand::Parse { cli, file } => {
             let raw = fs::read_to_string(&file)?;
             let record = parse_session_record(&cli, &raw)?;
@@ -821,6 +868,30 @@ fn session_record_to_json(record: &SessionRecord) -> Value {
         "updated_at": record.updated_at,
         "message_count": record.message_count,
     })
+}
+
+fn endpoint_name_from_project(project: &str) -> String {
+    let mut normalized = project
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() {
+                ch.to_ascii_lowercase()
+            } else {
+                '-'
+            }
+        })
+        .collect::<String>();
+
+    while normalized.contains("--") {
+        normalized = normalized.replace("--", "-");
+    }
+    let normalized = normalized.trim_matches('-');
+
+    if normalized.is_empty() {
+        "stead-project".to_string()
+    } else {
+        format!("stead-{}", normalized)
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
