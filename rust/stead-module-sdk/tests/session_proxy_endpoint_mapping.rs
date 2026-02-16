@@ -1,4 +1,4 @@
-use stead_module_sdk::{ModuleManager, ModuleName, SessionProxy};
+use stead_module_sdk::{project_endpoint_name, ModuleManager, ModuleName, SessionProxy};
 
 #[test]
 fn enabled_session_proxy_maps_project_to_deterministic_endpoint() {
@@ -52,4 +52,18 @@ fn endpoint_mapping_is_project_scoped() {
 
     assert_ne!(alpha.name, beta.name);
     assert_ne!(alpha.url, beta.url);
+}
+
+#[test]
+fn project_endpoint_name_matches_session_proxy_output() {
+    let mut proxy = SessionProxy::default();
+    let modules = ModuleManager::default();
+    let project = "/workspace/project-alpha";
+
+    let endpoint = proxy
+        .resolve_project_endpoint(&modules, project, "agent-a")
+        .unwrap()
+        .expect("endpoint mapping should exist");
+
+    assert_eq!(endpoint.name, project_endpoint_name(project));
 }

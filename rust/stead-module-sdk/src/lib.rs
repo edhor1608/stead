@@ -121,7 +121,7 @@ impl SessionProxy {
 
         let project = project.as_ref();
         let owner = owner.into();
-        let endpoint_name = endpoint_name_from_project(project);
+        let endpoint_name = project_endpoint_name(project);
         let claim = self
             .endpoint_registry
             .claim(endpoint_name, owner, None);
@@ -349,7 +349,7 @@ fn deterministic_context_fallback(
     }
 }
 
-fn endpoint_name_from_project(project: &str) -> String {
+pub fn project_endpoint_name(project: &str) -> String {
     let mut normalized = project
         .chars()
         .map(|ch| {

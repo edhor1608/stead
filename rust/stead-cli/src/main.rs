@@ -9,8 +9,8 @@ use stead_contracts::{Contract, ContractStatus};
 use stead_daemon::{ApiError, ApiRequest, ApiResponse, AttentionCounts, Daemon, API_VERSION};
 use stead_endpoints::{EndpointClaimResult, EndpointLease};
 use stead_module_sdk::{
-    ContextFragment, ContextGenerator, ContextProvider, ContextProviderError, ModuleManager,
-    ModuleName,
+    project_endpoint_name, ContextFragment, ContextGenerator, ContextProvider,
+    ContextProviderError, ModuleManager, ModuleName,
 };
 use stead_resources::{ClaimResult, ResourceKey};
 use stead_usf::{
@@ -553,7 +553,7 @@ fn handle_session(command: SessionCommand, json_output: bool) -> Result<()> {
             }
 
             let daemon = daemon_from_cwd()?;
-            let endpoint_name = endpoint_name_from_project(&project);
+            let endpoint_name = project_endpoint_name(&project);
             let response = match daemon_handle_raw(
                 &daemon,
                 ApiRequest::ClaimEndpoint {
@@ -892,30 +892,6 @@ fn session_record_to_json(record: &SessionRecord) -> Value {
         "updated_at": record.updated_at,
         "message_count": record.message_count,
     })
-}
-
-fn endpoint_name_from_project(project: &str) -> String {
-    let mut normalized = project
-        .chars()
-        .map(|ch| {
-            if ch.is_ascii_alphanumeric() {
-                ch.to_ascii_lowercase()
-            } else {
-                '-'
-            }
-        })
-        .collect::<String>();
-
-    while normalized.contains("--") {
-        normalized = normalized.replace("--", "-");
-    }
-    let normalized = normalized.trim_matches('-');
-
-    if normalized.is_empty() {
-        "stead-project".to_string()
-    } else {
-        format!("stead-{}", normalized)
-    }
 }
 
 #[derive(Debug, Clone, Copy)]
