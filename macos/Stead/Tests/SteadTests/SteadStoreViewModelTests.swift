@@ -1,0 +1,105 @@
+import XCTest
+@testable import Stead
+
+final class SteadStoreViewModelTests: XCTestCase {
+    @MainActor
+    func test_contract_upsert_adds_and_updates_single_row() {
+        let store = SteadStore()
+        let ready = makeContract(id: "c-1", status: .ready)
+        let failed = makeContract(id: "c-1", status: .failed)
+
+        store.apply(.contractUpsert(ready))
+        XCTAssertEqual(store.contracts.count, 1)
+        XCTAssertEqual(store.contracts.first?.status, .ready)
+
+        store.apply(.contractUpsert(failed))
+        XCTAssertEqual(store.contracts.count, 1)
+        XCTAssertEqual(store.contracts.first?.status, .failed)
+    }
+
+    @MainActor
+    func test_contract_remove_deletes_existing_row() {
+        let store = SteadStore()
+        store.apply(.contractUpsert(makeContract(id: "c-1", status: .ready)))
+        store.apply(.contractUpsert(makeContract(id: "c-2", status: .failed)))
+
+        store.apply(.contractRemoved(id: "c-1"))
+
+        XCTAssertEqual(store.contracts.map(\.id), ["c-2"])
+    }
+
+    @MainActor
+    func test_event_driven_contracts_by_priority_keeps_attention_order() {
+        let store = SteadStore()
+        store.apply(.contractUpsert(makeContract(id: "c-ready", status: .ready)))
+        store.apply(.contractUpsert(makeContract(id: "c-failed", status: .failed)))
+        store.apply(.contractUpsert(makeContract(id: "c-verifying", status: .verifying)))
+
+        let labels = store.contractsByPriority.map(\.0)
+        XCTAssertEqual(labels, ["Failed", "Verifying", "Ready"])
+    }
+
+    @MainActor
+    func test_session_upsert_and_remove_are_event_driven() {
+        let store = SteadStore()
+        let session = SessionItem(
+            id: "s-1",
+            cli: .claude,
+            projectPath: "/tmp/project",
+            title: "Title",
+            created: "2026-02-16T00:00:00Z",
+            lastModified: "2026-02-16T00:01:00Z",
+            messageCount: 3,
+            gitBranch: "main"
+        )
+
+        store.apply(.sessionUpsert(session))
+        XCTAssertEqual(store.sessions.map(\.id), ["s-1"])
+
+        store.apply(.sessionRemoved(id: "s-1"))
+        XCTAssertTrue(store.sessions.isEmpty)
+    }
+
+    @MainActor
+    func test_menu_bar_state_idle_when_no_active_contracts() {
+        let store = SteadStore()
+        XCTAssertEqual(store.menuBarState, .idle)
+    }
+
+    @MainActor
+    func test_menu_bar_state_running_when_executing_present() {
+        let store = SteadStore()
+        store.apply(.contractUpsert(makeContract(id: "c-1", status: .executing)))
+        XCTAssertEqual(store.menuBarState, .running)
+    }
+
+    @MainActor
+    func test_menu_bar_state_attention_when_failed_present() {
+        let store = SteadStore()
+        store.apply(.contractUpsert(makeContract(id: "c-1", status: .failed)))
+        XCTAssertEqual(store.menuBarState, .attention)
+    }
+
+    @MainActor
+    func test_menu_bar_state_decision_has_highest_priority() {
+        let store = SteadStore()
+        store.apply(.contractUpsert(makeContract(id: "c-1", status: .failed)))
+        store.apply(.contractUpsert(makeContract(id: "c-2", status: .verifying)))
+        XCTAssertEqual(store.menuBarState, .decision)
+    }
+
+    private func makeContract(id: String, status: ContractStatus) -> ContractItem {
+        ContractItem(
+            id: id,
+            task: "task-\(id)",
+            verification: "echo ok",
+            status: status,
+            createdAt: "2026-02-16T00:00:00Z",
+            completedAt: nil,
+            output: nil,
+            owner: nil,
+            blockedBy: [],
+            blocks: []
+        )
+    }
+}
