@@ -12,7 +12,10 @@ use stead_module_sdk::{
     ModuleName,
 };
 use stead_resources::{ClaimResult, ResourceKey};
-use stead_usf::{ClaudeAdapter, CodexAdapter, OpenCodeAdapter, SessionAdapter, SessionRecord};
+use stead_usf::{
+    query_sessions, CliType, ClaudeAdapter, CodexAdapter, OpenCodeAdapter, SessionAdapter,
+    SessionRecord,
+};
 
 #[derive(Parser, Debug)]
 #[command(name = "stead")]
@@ -79,6 +82,12 @@ enum ContractCommand {
 
 #[derive(Subcommand, Debug)]
 enum SessionCommand {
+    List {
+        #[arg(long)]
+        cli: Option<String>,
+        #[arg(long)]
+        query: Option<String>,
+    },
     Parse {
         #[arg(long)]
         cli: String,
@@ -404,6 +413,24 @@ fn handle_module(command: ModuleCommand, json_output: bool) -> Result<()> {
 
 fn handle_session(command: SessionCommand, json_output: bool) -> Result<()> {
     match command {
+        SessionCommand::List { cli, query } => {
+            let cli_filter = match cli.as_deref() {
+                Some(raw) => Some(parse_cli_type(raw)?),
+                None => None,
+            };
+
+            let sessions = load_sessions_from_workspace()?;
+            let filtered = query_sessions(&sessions, cli_filter, query.as_deref());
+
+            if json_output {
+                let out: Vec<Value> = filtered.iter().map(session_record_to_json).collect();
+                println!("{}", serde_json::to_string(&out)?);
+            } else {
+                for session in filtered {
+                    println!("{:?} {} {}", session.cli, session.id, session.title);
+                }
+            }
+        }
         SessionCommand::Parse { cli, file } => {
             let raw = fs::read_to_string(&file)?;
             let record = parse_session_record(&cli, &raw)?;
@@ -571,6 +598,57 @@ fn parse_session_record(cli: &str, raw: &str) -> Result<SessionRecord> {
         "opencode" => OpenCodeAdapter.parse(raw).map_err(to_anyhow),
         _ => bail!("unsupported cli: {cli}"),
     }
+}
+
+fn parse_cli_type(raw: &str) -> Result<CliType> {
+    match raw.to_ascii_lowercase().as_str() {
+        "claude" => Ok(CliType::Claude),
+        "codex" => Ok(CliType::Codex),
+        "opencode" => Ok(CliType::OpenCode),
+        _ => bail!("unsupported cli: {raw}"),
+    }
+}
+
+fn load_sessions_from_workspace() -> Result<Vec<SessionRecord>> {
+    let root = env::current_dir()?.join(".stead").join("sessions");
+    if !root.exists() {
+        return Ok(Vec::new());
+    }
+
+    let mut sessions = Vec::new();
+    collect_sessions_from_dir(&root.join("claude"), &ClaudeAdapter, &mut sessions)?;
+    collect_sessions_from_dir(&root.join("codex"), &CodexAdapter, &mut sessions)?;
+    collect_sessions_from_dir(&root.join("opencode"), &OpenCodeAdapter, &mut sessions)?;
+
+    Ok(sessions)
+}
+
+fn collect_sessions_from_dir(
+    dir: &Path,
+    adapter: &dyn SessionAdapter,
+    out: &mut Vec<SessionRecord>,
+) -> Result<()> {
+    if !dir.exists() {
+        return Ok(());
+    }
+
+    let mut files: Vec<PathBuf> = fs::read_dir(dir)?
+        .filter_map(|entry| entry.ok().map(|item| item.path()))
+        .filter(|path| path.is_file())
+        .collect();
+    files.sort();
+
+    for path in files {
+        let Ok(raw) = fs::read_to_string(&path) else {
+            continue;
+        };
+        let Ok(record) = adapter.parse(&raw) else {
+            continue;
+        };
+        out.push(record);
+    }
+
+    Ok(())
 }
 
 fn to_anyhow(error: stead_usf::UsfError) -> anyhow::Error {

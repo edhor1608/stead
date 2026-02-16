@@ -1,6 +1,7 @@
 use assert_cmd::prelude::*;
 use predicates::prelude::*;
 use std::process::Command;
+use std::time::{Duration, Instant};
 use tempfile::TempDir;
 
 #[allow(deprecated)]
@@ -259,4 +260,233 @@ fn test_session_group_parses_claude_fixture() {
     let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(json["cli"], "Claude");
     assert_eq!(json["id"], "claude-s-1");
+}
+
+#[test]
+fn test_session_group_lists_sessions_sorted_and_filtered() {
+    let tmp = TempDir::new().unwrap();
+    let sessions_root = tmp.path().join(".stead").join("sessions");
+    std::fs::create_dir_all(sessions_root.join("claude")).unwrap();
+    std::fs::create_dir_all(sessions_root.join("codex")).unwrap();
+    std::fs::create_dir_all(sessions_root.join("opencode")).unwrap();
+
+    std::fs::write(
+        sessions_root.join("claude").join("a.json"),
+        r#"{
+  "session_id":"claude-s-1",
+  "project_path":"/tmp/p-a",
+  "updated_at":1700000002,
+  "messages":[{"role":"user","content":"Alpha"}]
+}"#,
+    )
+    .unwrap();
+
+    std::fs::write(
+        sessions_root.join("codex").join("b.json"),
+        r#"{
+  "id":"codex-s-1",
+  "cwd":"/tmp/p-b",
+  "last_updated":1700000001,
+  "events":[{"type":"user","text":"Beta"}]
+}"#,
+    )
+    .unwrap();
+
+    std::fs::write(
+        sessions_root.join("opencode").join("c.json"),
+        r#"{
+  "meta":{"session":"opencode-s-1","project":"/tmp/p-c","updated":1700000003},
+  "transcript":[{"speaker":"user","message":"Gamma"}]
+}"#,
+    )
+    .unwrap();
+
+    let output = stead()
+        .args(["--json", "session", "list"])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    let rows = json.as_array().unwrap();
+    assert_eq!(rows.len(), 3);
+    assert_eq!(rows[0]["id"], "opencode-s-1");
+    assert_eq!(rows[1]["id"], "claude-s-1");
+    assert_eq!(rows[2]["id"], "codex-s-1");
+
+    let filtered_cli = stead()
+        .args(["--json", "session", "list", "--cli", "claude"])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    assert!(filtered_cli.status.success());
+    let filtered_cli_json: serde_json::Value = serde_json::from_slice(&filtered_cli.stdout).unwrap();
+    let filtered_cli_rows = filtered_cli_json.as_array().unwrap();
+    assert_eq!(filtered_cli_rows.len(), 1);
+    assert_eq!(filtered_cli_rows[0]["id"], "claude-s-1");
+
+    let filtered_query = stead()
+        .args(["--json", "session", "list", "--query", "gamma"])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    assert!(filtered_query.status.success());
+    let filtered_query_json: serde_json::Value =
+        serde_json::from_slice(&filtered_query.stdout).unwrap();
+    let filtered_query_rows = filtered_query_json.as_array().unwrap();
+    assert_eq!(filtered_query_rows.len(), 1);
+    assert_eq!(filtered_query_rows[0]["id"], "opencode-s-1");
+}
+
+#[test]
+fn test_session_group_list_ignores_corrupt_files() {
+    let tmp = TempDir::new().unwrap();
+    let sessions_root = tmp.path().join(".stead").join("sessions");
+    std::fs::create_dir_all(sessions_root.join("claude")).unwrap();
+    std::fs::write(sessions_root.join("claude").join("bad.json"), "{not-json").unwrap();
+
+    let output = stead()
+        .args(["--json", "session", "list"])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(json.as_array().unwrap().len(), 0);
+}
+
+#[test]
+fn test_session_list_under_target_load_is_below_200ms() {
+    let tmp = TempDir::new().unwrap();
+    let sessions_root = tmp.path().join(".stead").join("sessions");
+    std::fs::create_dir_all(sessions_root.join("claude")).unwrap();
+    std::fs::create_dir_all(sessions_root.join("codex")).unwrap();
+    std::fs::create_dir_all(sessions_root.join("opencode")).unwrap();
+
+    for i in 1..=50 {
+        std::fs::write(
+            sessions_root.join("claude").join(format!("{i}.json")),
+            format!(
+                r#"{{
+  "session_id":"claude-{i}",
+  "project_path":"/tmp/p-{i}",
+  "updated_at":1700000{i},
+  "messages":[{{"role":"user","content":"Alpha {i}"}}]
+}}"#
+            ),
+        )
+        .unwrap();
+
+        std::fs::write(
+            sessions_root.join("codex").join(format!("{i}.json")),
+            format!(
+                r#"{{
+  "id":"codex-{i}",
+  "cwd":"/tmp/p-{i}",
+  "last_updated":1701000{i},
+  "events":[{{"type":"user","text":"Beta {i}"}}]
+}}"#
+            ),
+        )
+        .unwrap();
+
+        std::fs::write(
+            sessions_root.join("opencode").join(format!("{i}.json")),
+            format!(
+                r#"{{
+  "meta":{{"session":"opencode-{i}","project":"/tmp/p-{i}","updated":1702000{i}}},
+  "transcript":[{{"speaker":"user","message":"Gamma {i}"}}]
+}}"#
+            ),
+        )
+        .unwrap();
+    }
+
+    stead()
+        .args(["--json", "session", "list"])
+        .current_dir(tmp.path())
+        .assert()
+        .success();
+
+    let start = Instant::now();
+    let output = stead()
+        .args(["--json", "session", "list"])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    let elapsed = start.elapsed();
+
+    assert!(output.status.success());
+    assert!(
+        elapsed < Duration::from_millis(200),
+        "session list took {:?}, expected < 200ms",
+        elapsed
+    );
+}
+
+#[test]
+fn test_ding_to_context_restoration_is_below_10_seconds() {
+    let tmp = TempDir::new().unwrap();
+
+    stead()
+        .args(["contract", "create", "--id", "ding-c1"])
+        .current_dir(tmp.path())
+        .assert()
+        .success();
+    stead()
+        .args(["contract", "transition", "ding-c1", "--to", "claimed"])
+        .current_dir(tmp.path())
+        .assert()
+        .success();
+    stead()
+        .args(["contract", "transition", "ding-c1", "--to", "executing"])
+        .current_dir(tmp.path())
+        .assert()
+        .success();
+    stead()
+        .args(["contract", "transition", "ding-c1", "--to", "verifying"])
+        .current_dir(tmp.path())
+        .assert()
+        .success();
+    stead()
+        .args(["contract", "transition", "ding-c1", "--to", "failed"])
+        .current_dir(tmp.path())
+        .assert()
+        .success();
+
+    let start = Instant::now();
+
+    let attention_output = stead()
+        .args(["--json", "attention", "status"])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    assert!(attention_output.status.success());
+    let attention_json: serde_json::Value = serde_json::from_slice(&attention_output.stdout).unwrap();
+    assert!(attention_json["anomaly"].as_u64().unwrap_or(0) >= 1);
+
+    let context_output = stead()
+        .args([
+            "--json",
+            "context",
+            "generate",
+            "--task",
+            "Restore context for ding-c1",
+            "--fragment",
+            "contract|failed transition|stead.db",
+        ])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    assert!(context_output.status.success());
+    let context_json: serde_json::Value = serde_json::from_slice(&context_output.stdout).unwrap();
+    assert!(context_json.get("content").is_some());
+
+    assert!(
+        start.elapsed() < Duration::from_secs(10),
+        "ding-to-context restoration exceeded 10s: {:?}",
+        start.elapsed()
+    );
 }

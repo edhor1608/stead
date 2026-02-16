@@ -519,3 +519,29 @@ See: `docs/plans/universal-session-format.md`
 ### Naming
 - "stead" as project name — keep it?
 - What does stead stand for? (or is it just a word?)
+
+---
+
+## 2026-02-16: Rewrite Branch (`rewrite/v1`) Session Surface Parity + M10 SLO Test Gates
+
+**Context:** The grouped CLI rewrite still lacked `session list`, which blocked CLI/UI parity expectations and the M10 session-list latency gate.
+
+**Decision:**
+- Add `stead session list` with:
+  - workspace-local discovery from `.stead/sessions/{claude,codex,opencode}`
+  - deterministic recency ordering via USF query contract
+  - `--cli` and `--query` filters
+  - corrupt/partial file tolerance (skip invalid files, keep command successful)
+- Add explicit SLO tests:
+  - `session list` under target load (<200ms)
+  - state propagation latency gate (<5s)
+  - ding-to-context restoration scenario (<10s)
+  - concurrent client soak stability gate
+
+**Rationale:**
+- Restores a key canonical session workflow without re-introducing legacy surface coupling.
+- Locks SLO requirements as executable tests instead of aspirational docs.
+
+**Consequences:**
+- CLI now has both `session parse` and `session list`.
+- M10 gates are represented in test suites and run in normal workspace test passes.
