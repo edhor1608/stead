@@ -82,10 +82,20 @@ jobs:
       - name: Enforce stead-usf line coverage >= 90%
         run: cargo llvm-cov -p stead-usf --fail-under-lines 90 --summary-only
 
+  macos-ui-tests:
+    name: macOS UI Tests
+    runs-on: macos-latest
+    needs: [test]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run SwiftUI macOS tests
+        run: xcodebuild -project macos/Stead/Stead.xcodeproj -scheme Stead -destination 'platform=macOS' test
+
   build:
     name: Build (macOS aarch64)
     runs-on: macos-latest
-    needs: [check, test, coverage]
+    needs: [check, test, coverage, macos-ui-tests]
     defaults:
       run:
         working-directory: rust

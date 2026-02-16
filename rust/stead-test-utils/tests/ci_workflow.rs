@@ -57,3 +57,25 @@ fn ci_workflow_enforces_90_percent_domain_coverage_thresholds() {
         "stead-usf threshold missing"
     );
 }
+
+#[test]
+fn ci_workflow_runs_macos_control_room_tests() {
+    let workflow = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("..")
+            .join(".github")
+            .join("workflows")
+            .join("ci.yml"),
+    )
+    .expect("workflow should exist");
+
+    assert!(
+        workflow.contains("macos-ui-tests:"),
+        "macOS UI test job missing"
+    );
+    assert!(
+        workflow.contains("xcodebuild -project macos/Stead/Stead.xcodeproj -scheme Stead -destination 'platform=macOS' test"),
+        "xcodebuild test command missing"
+    );
+}
