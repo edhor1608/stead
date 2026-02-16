@@ -2,7 +2,6 @@ import SwiftUI
 
 struct ContractListView: View {
     @ObservedObject var store: SteadStore
-    @State private var selectedContract: ContractItem?
 
     var body: some View {
         HSplitView {
@@ -30,8 +29,8 @@ struct ContractListView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 List(selection: Binding(
-                    get: { selectedContract?.id },
-                    set: { id in selectedContract = store.contracts.first { $0.id == id } }
+                    get: { store.focusedContractId },
+                    set: { id in store.focusedContractId = id }
                 )) {
                     ForEach(store.contractsByPriority, id: \.0) { label, items in
                         Section(label) {
@@ -49,7 +48,9 @@ struct ContractListView: View {
 
     private var contractDetail: some View {
         Group {
-            if let contract = selectedContract {
+            if let selectedId = store.focusedContractId,
+               let contract = store.contracts.first(where: { $0.id == selectedId })
+            {
                 ContractDetailView(contract: contract)
             } else {
                 Text("Select a contract")

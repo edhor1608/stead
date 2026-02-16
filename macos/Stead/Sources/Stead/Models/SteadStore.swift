@@ -197,6 +197,7 @@ class SteadStore: ObservableObject {
     @Published var contracts: [ContractItem] = []
     @Published var sessions: [SessionItem] = []
     @Published var selectedTab: Tab = .contracts
+    @Published var focusedContractId: String?
     @Published var errorMessage: String?
 
     enum Tab {
@@ -209,6 +210,12 @@ class SteadStore: ObservableObject {
         case running
         case attention
         case decision
+    }
+
+    enum PrimaryResolutionAction: Equatable {
+        case none
+        case resolveDecision(contractId: String)
+        case resolveAnomaly(contractId: String)
     }
 
     enum Event {
@@ -246,10 +253,18 @@ class SteadStore: ObservableObject {
         switch event {
         case let .contractSnapshot(items):
             contracts = items.sorted(by: Self.contractSort)
+            if let focused = focusedContractId,
+               contracts.contains(where: { $0.id == focused }) == false
+            {
+                focusedContractId = nil
+            }
         case let .contractUpsert(item):
             upsertContract(item)
         case let .contractRemoved(id):
             contracts.removeAll { $0.id == id }
+            if focusedContractId == id {
+                focusedContractId = nil
+            }
         case let .sessionSnapshot(items):
             sessions = items.sorted(by: Self.sessionSort)
         case let .sessionUpsert(item):
@@ -323,6 +338,41 @@ class SteadStore: ObservableObject {
             return .running
         }
         return .idle
+    }
+
+    var primaryResolutionAction: PrimaryResolutionAction {
+        if let decision = contracts
+            .sorted(by: Self.contractSort)
+            .first(where: { $0.status == .verifying })
+        {
+            return .resolveDecision(contractId: decision.id)
+        }
+
+        if let anomaly = contracts
+            .sorted(by: Self.contractSort)
+            .first(where: {
+                $0.status == .failed || $0.status == .rollingBack || $0.status == .rolledBack
+            })
+        {
+            return .resolveAnomaly(contractId: anomaly.id)
+        }
+
+        return .none
+    }
+
+    @discardableResult
+    func performPrimaryResolutionAction() -> Bool {
+        let contractId: String
+        switch primaryResolutionAction {
+        case .none:
+            return false
+        case let .resolveDecision(id), let .resolveAnomaly(id):
+            contractId = id
+        }
+
+        selectedTab = .contracts
+        focusedContractId = contractId
+        return true
     }
 
     /// Sessions grouped by CLI type

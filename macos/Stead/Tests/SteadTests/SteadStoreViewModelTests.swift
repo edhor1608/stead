@@ -88,6 +88,37 @@ final class SteadStoreViewModelTests: XCTestCase {
         XCTAssertEqual(store.menuBarState, .decision)
     }
 
+    @MainActor
+    func test_primary_resolution_action_prefers_decision_contract() {
+        let store = SteadStore()
+        store.apply(.contractUpsert(makeContract(id: "c-attn", status: .failed)))
+        store.apply(.contractUpsert(makeContract(id: "c-decision", status: .verifying)))
+
+        XCTAssertEqual(
+            store.primaryResolutionAction,
+            .resolveDecision(contractId: "c-decision")
+        )
+    }
+
+    @MainActor
+    func test_primary_resolution_action_returns_none_without_actionable_contract() {
+        let store = SteadStore()
+        store.apply(.contractUpsert(makeContract(id: "c-done", status: .completed)))
+        XCTAssertEqual(store.primaryResolutionAction, .none)
+        XCTAssertFalse(store.performPrimaryResolutionAction())
+    }
+
+    @MainActor
+    func test_perform_primary_resolution_focuses_contract_and_contract_tab() {
+        let store = SteadStore()
+        store.selectedTab = .sessions
+        store.apply(.contractUpsert(makeContract(id: "c-attn", status: .failed)))
+
+        XCTAssertTrue(store.performPrimaryResolutionAction())
+        XCTAssertEqual(store.focusedContractId, "c-attn")
+        XCTAssertEqual(store.selectedTab, .contracts)
+    }
+
     private func makeContract(id: String, status: ContractStatus) -> ContractItem {
         ContractItem(
             id: id,
