@@ -23,7 +23,7 @@ struct ContentView: View {
         }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Button(action: { store.refresh() }) {
+                Button(action: { _ = store.handleKeyboardShortcut(.refresh) }) {
                     Label("Refresh", systemImage: "arrow.clockwise")
                 }
                 .keyboardShortcut("r", modifiers: .command)

@@ -15,6 +15,7 @@ Use these docs in this order:
    - `rust/README.md`
 3. Execution sequencing:
    - `docs/plans/phase2-revised.md`
+   - `docs/plans/rewrite-parallel-track-m11-named-localhost.md` (parallel track; non-blocking to active M9 work)
 4. Scope and UX direction:
    - `docs/plans/mvp-scope.md`
    - `docs/plans/ux-refined.md`
@@ -74,6 +75,10 @@ These are explicitly still open and should be decided one-by-one:
 2. State-machine strictness: current pragmatic command behavior vs stricter transition enforcement.
 3. Control-room scope: project-local contract view vs cross-project contract view now.
 4. CLI default interaction: canonical says bare `stead` should show status overview, but current CLI still defaults to help text.
+5. M11 endpoint CLI namespace: `resource endpoint` vs top-level `endpoint` vs both.
+6. M11 first URL format: `name+port` only vs no-port reverse proxy vs staged rollout.
+7. M11 crate boundary: extend `stead-resources` vs new `stead-endpoints` crate vs daemon-only.
+8. M11 persistence scope: workspace-local vs machine-global vs dual-scope.
 
 Reference:
 - `docs/plans/planning-first-roadmap-2026-02-11.md`

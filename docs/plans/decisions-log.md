@@ -485,6 +485,35 @@ See: `docs/plans/universal-session-format.md`
 
 ---
 
+## 2026-02-16: Parallel Track Added - Rust-Native Named Localhost Broker (`portless` Concept)
+
+**Context:** We identified `vercel-labs/portless` as strong conceptual overlap with stead's resource negotiation and session-proxy goals. We want the concept, but not an external runtime dependency, and M9 is already in progress in a parallel implementation thread.
+
+**Decision:** Add a **parallel** Rust-native implementation track for a named-localhost broker module (portless-style behavior) that is reusable as a standalone crate and integrated through existing daemon/resource/module boundaries.
+
+**Rationale:**
+- Preserves rewrite principle: from-scratch, concept-forward, no backward coupling.
+- Keeps core behavior in Rust and exportable as independent GitHub module(s).
+- Directly targets real pain: stable project URLs + deterministic port conflict handling.
+
+**Plan placement and execution rule:**
+- This is added as a new parallel track, **non-blocking for active M9 work**.
+- Integration should happen through existing seams (`stead-resources`, `stead-daemon`, `stead-module-sdk`, `stead-cli`) instead of introducing a new architecture layer.
+
+**Planned TDD slices (new track):**
+- **M11-S1:** Domain contract tests for named endpoint leases (claim/release/ownership, deterministic naming rules).
+- **M11-S2:** Negotiation tests for name+port conflicts with deterministic next-port assignment and escalation on range exhaustion.
+- **M11-S3:** Daemon API tests for endpoint claim/list/release envelopes and typed errors.
+- **M11-S4:** CLI tests for endpoint workflows and stable JSON output.
+- **M11-S5:** Session-proxy integration tests validating project-bound stable URL mapping and module on/off behavior.
+
+**Consequences:**
+- `portless` concept is now explicitly on the roadmap without changing current M9 critical path.
+- Future implementation must follow existing strict TDD checkpoint protocol per slice.
+- Detailed execution plan lives in `docs/plans/rewrite-parallel-track-m11-named-localhost.md`.
+
+---
+
 ## Open Decisions
 
 ### Naming

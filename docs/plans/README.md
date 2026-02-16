@@ -12,6 +12,7 @@ Use this as the entry point to planning documents.
 
 - `docs/plans/canonical-decisions-2026-02-11.md` - Concept constraints.
 - `docs/plans/phase2-revised.md` - Execution sequencing and milestone status.
+- `docs/plans/rewrite-parallel-track-m11-named-localhost.md` - Parallel M11 plan for Rust-native named localhost broker.
 - `docs/plans/mvp-scope.md` - MVP boundary and acceptance criteria.
 - `docs/plans/ux-refined.md` - Definitive SwiftUI interaction spec.
 - `docs/plans/architecture-principles.md` - Long-form architecture rationale.

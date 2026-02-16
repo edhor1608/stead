@@ -119,6 +119,29 @@ final class SteadStoreViewModelTests: XCTestCase {
         XCTAssertEqual(store.selectedTab, .contracts)
     }
 
+    @MainActor
+    func test_keyboard_shortcuts_switch_tabs() {
+        let store = SteadStore()
+        store.selectedTab = .sessions
+
+        XCTAssertTrue(store.handleKeyboardShortcut(.showContracts))
+        XCTAssertEqual(store.selectedTab, .contracts)
+
+        XCTAssertTrue(store.handleKeyboardShortcut(.showSessions))
+        XCTAssertEqual(store.selectedTab, .sessions)
+    }
+
+    @MainActor
+    func test_keyboard_shortcut_resolve_primary_routes_to_resolution_flow() {
+        let store = SteadStore()
+        store.selectedTab = .sessions
+        store.apply(.contractUpsert(makeContract(id: "c-1", status: .failed)))
+
+        XCTAssertTrue(store.handleKeyboardShortcut(.resolvePrimary))
+        XCTAssertEqual(store.focusedContractId, "c-1")
+        XCTAssertEqual(store.selectedTab, .contracts)
+    }
+
     private func makeContract(id: String, status: ContractStatus) -> ContractItem {
         ContractItem(
             id: id,

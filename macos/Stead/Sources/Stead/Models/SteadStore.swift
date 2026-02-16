@@ -227,6 +227,13 @@ class SteadStore: ObservableObject {
         case sessionRemoved(id: String)
     }
 
+    enum KeyboardShortcut {
+        case showContracts
+        case showSessions
+        case resolvePrimary
+        case refresh
+    }
+
     func refresh() {
         loadContracts()
         loadSessions()
@@ -373,6 +380,23 @@ class SteadStore: ObservableObject {
         selectedTab = .contracts
         focusedContractId = contractId
         return true
+    }
+
+    @discardableResult
+    func handleKeyboardShortcut(_ shortcut: KeyboardShortcut) -> Bool {
+        switch shortcut {
+        case .showContracts:
+            selectedTab = .contracts
+            return true
+        case .showSessions:
+            selectedTab = .sessions
+            return true
+        case .resolvePrimary:
+            return performPrimaryResolutionAction()
+        case .refresh:
+            refresh()
+            return true
+        }
     }
 
     /// Sessions grouped by CLI type
