@@ -12,6 +12,7 @@ fn reusable_crates_have_exportable_package_metadata() {
         "stead-contracts",
         "stead-usf",
         "stead-resources",
+        "stead-endpoints",
         "stead-module-sdk",
     ];
 
