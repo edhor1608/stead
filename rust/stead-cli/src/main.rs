@@ -6,7 +6,8 @@ use anyhow::{anyhow, bail, Result};
 use clap::{Parser, Subcommand};
 use serde_json::{json, Value};
 use stead_contracts::{Contract, ContractStatus};
-use stead_daemon::{ApiRequest, ApiResponse, AttentionCounts, Daemon, API_VERSION};
+use stead_daemon::{ApiError, ApiRequest, ApiResponse, AttentionCounts, Daemon, API_VERSION};
+use stead_endpoints::{EndpointClaimResult, EndpointLease};
 use stead_module_sdk::{
     ContextFragment, ContextGenerator, ContextProvider, ContextProviderError, ModuleManager,
     ModuleName,
@@ -101,6 +102,29 @@ enum ResourceCommand {
     Claim {
         #[arg(long)]
         resource: String,
+        #[arg(long)]
+        owner: String,
+    },
+    Endpoint {
+        #[command(subcommand)]
+        command: EndpointCommand,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum EndpointCommand {
+    Claim {
+        #[arg(long)]
+        name: String,
+        #[arg(long)]
+        owner: String,
+        #[arg(long)]
+        port: Option<u16>,
+    },
+    List,
+    Release {
+        #[arg(long)]
+        name: String,
         #[arg(long)]
         owner: String,
     },
@@ -304,6 +328,83 @@ fn handle_resource(command: ResourceCommand, json_output: bool) -> Result<()> {
                 println!("{:?}", claim);
             }
         }
+        ResourceCommand::Endpoint { command } => handle_endpoint_command(&daemon, command, json_output)?,
+    }
+
+    Ok(())
+}
+
+fn handle_endpoint_command(daemon: &Daemon, command: EndpointCommand, json_output: bool) -> Result<()> {
+    match command {
+        EndpointCommand::Claim { name, owner, port } => {
+            let response = match daemon_handle_raw(
+                daemon,
+                ApiRequest::ClaimEndpoint {
+                    name,
+                    owner,
+                    port,
+                },
+            ) {
+                Ok(response) => response,
+                Err(error) => return render_daemon_error(error, json_output),
+            };
+
+            let claim = match response {
+                ApiResponse::EndpointClaim(claim) => claim,
+                _ => bail!("invalid endpoint claim response"),
+            };
+
+            if json_output {
+                println!("{}", endpoint_claim_to_json(&claim));
+            } else {
+                match claim {
+                    EndpointClaimResult::Claimed(lease) => {
+                        println!("claimed {} -> {}", lease.name, lease.url());
+                    }
+                    EndpointClaimResult::Negotiated { assigned, .. } => {
+                        println!("negotiated {} -> {}", assigned.name, assigned.url());
+                    }
+                    EndpointClaimResult::Conflict(conflict) => {
+                        println!("conflict {}", conflict.name);
+                    }
+                }
+            }
+        }
+        EndpointCommand::List => {
+            let response = match daemon_handle_raw(daemon, ApiRequest::ListEndpoints) {
+                Ok(response) => response,
+                Err(error) => return render_daemon_error(error, json_output),
+            };
+            let leases = match response {
+                ApiResponse::Endpoints(leases) => leases,
+                _ => bail!("invalid endpoint list response"),
+            };
+
+            if json_output {
+                let out: Vec<Value> = leases.iter().map(endpoint_lease_to_json).collect();
+                println!("{}", serde_json::to_string(&out)?);
+            } else {
+                for lease in leases {
+                    println!("{} {}", lease.name, lease.url());
+                }
+            }
+        }
+        EndpointCommand::Release { name, owner } => {
+            let response = match daemon_handle_raw(daemon, ApiRequest::ReleaseEndpoint { name, owner }) {
+                Ok(response) => response,
+                Err(error) => return render_daemon_error(error, json_output),
+            };
+            let lease = match response {
+                ApiResponse::EndpointReleased(lease) => lease,
+                _ => bail!("invalid endpoint release response"),
+            };
+
+            if json_output {
+                println!("{}", endpoint_lease_to_json(&lease));
+            } else {
+                println!("released {}", lease.name);
+            }
+        }
     }
 
     Ok(())
@@ -456,10 +557,32 @@ fn daemon_from_cwd() -> Result<Daemon> {
 }
 
 fn daemon_handle(daemon: &Daemon, request: ApiRequest) -> Result<ApiResponse> {
+    daemon_handle_raw(daemon, request).map_err(|error| anyhow!("{}", error.message))
+}
+
+fn daemon_handle_raw(
+    daemon: &Daemon,
+    request: ApiRequest,
+) -> std::result::Result<ApiResponse, ApiError> {
     daemon
         .handle(request)
         .map(|envelope| envelope.data)
-        .map_err(|error| anyhow!("{}", error.message))
+}
+
+fn render_daemon_error(error: ApiError, json_output: bool) -> Result<()> {
+    if json_output {
+        println!(
+            "{}",
+            json!({
+                "error": {
+                    "code": error.code,
+                    "message": error.message,
+                }
+            })
+        );
+    }
+
+    bail!("{}", error.message)
 }
 
 fn unwrap_contract_state(data: ApiResponse) -> Result<Contract> {
@@ -522,6 +645,40 @@ fn claim_to_json(claim: &ClaimResult) -> Value {
             }
         }),
     }
+}
+
+fn endpoint_claim_to_json(claim: &EndpointClaimResult) -> Value {
+    match claim {
+        EndpointClaimResult::Claimed(lease) => json!({
+            "type": "claimed",
+            "lease": endpoint_lease_to_json(lease),
+        }),
+        EndpointClaimResult::Negotiated {
+            requested_port,
+            assigned,
+            held_by,
+        } => json!({
+            "type": "negotiated",
+            "requested_port": requested_port,
+            "lease": endpoint_lease_to_json(assigned),
+            "held_by": endpoint_lease_to_json(held_by),
+        }),
+        EndpointClaimResult::Conflict(conflict) => json!({
+            "type": "conflict",
+            "name": conflict.name,
+            "requested_port": conflict.requested_port,
+            "held_by": conflict.held_by.as_ref().map(endpoint_lease_to_json),
+        }),
+    }
+}
+
+fn endpoint_lease_to_json(lease: &EndpointLease) -> Value {
+    json!({
+        "name": lease.name,
+        "owner": lease.owner,
+        "port": lease.port,
+        "url": lease.url(),
+    })
 }
 
 fn parse_contract_status(raw: &str) -> Result<ContractStatus> {

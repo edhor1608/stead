@@ -12,6 +12,7 @@ path = "src/main.rs"
 
 [dependencies]
 stead-daemon = { path = "../stead-daemon" }
+stead-endpoints = { path = "../stead-endpoints" }
 stead-contracts = { path = "../stead-contracts" }
 stead-module-sdk = { path = "../stead-module-sdk" }
 stead-resources = { path = "../stead-resources" }

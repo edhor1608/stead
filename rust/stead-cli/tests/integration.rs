@@ -173,6 +173,134 @@ fn test_resource_group_claim_conflict_and_negotiation() {
 }
 
 #[test]
+fn test_resource_endpoint_group_claim_list_release_json_schema_is_stable() {
+    let tmp = TempDir::new().unwrap();
+
+    let claim = stead()
+        .args([
+            "--json",
+            "resource",
+            "endpoint",
+            "claim",
+            "--name",
+            "api",
+            "--owner",
+            "agent-a",
+            "--port",
+            "4100",
+        ])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    assert!(claim.status.success());
+
+    let claim_json: serde_json::Value = serde_json::from_slice(&claim.stdout).unwrap();
+    assert_eq!(claim_json["type"], "claimed");
+    assert_eq!(claim_json["lease"]["name"], "api");
+    assert_eq!(claim_json["lease"]["owner"], "agent-a");
+    assert_eq!(claim_json["lease"]["port"], 4100);
+    assert_eq!(claim_json["lease"]["url"], "http://api.localhost:4100");
+
+    let listed = stead()
+        .args(["--json", "resource", "endpoint", "list"])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    assert!(listed.status.success());
+
+    let listed_json: serde_json::Value = serde_json::from_slice(&listed.stdout).unwrap();
+    let rows = listed_json.as_array().unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0]["name"], "api");
+    assert_eq!(rows[0]["url"], "http://api.localhost:4100");
+
+    let released = stead()
+        .args([
+            "--json",
+            "resource",
+            "endpoint",
+            "release",
+            "--name",
+            "api",
+            "--owner",
+            "agent-a",
+        ])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    assert!(released.status.success());
+
+    let released_json: serde_json::Value = serde_json::from_slice(&released.stdout).unwrap();
+    assert_eq!(released_json["name"], "api");
+    assert_eq!(released_json["owner"], "agent-a");
+    assert_eq!(released_json["port"], 4100);
+}
+
+#[test]
+fn test_resource_endpoint_group_returns_typed_json_errors() {
+    let tmp = TempDir::new().unwrap();
+
+    stead()
+        .args([
+            "--json",
+            "resource",
+            "endpoint",
+            "claim",
+            "--name",
+            "api",
+            "--owner",
+            "agent-a",
+            "--port",
+            "4100",
+        ])
+        .current_dir(tmp.path())
+        .assert()
+        .success();
+
+    let not_owner = stead()
+        .args([
+            "--json",
+            "resource",
+            "endpoint",
+            "release",
+            "--name",
+            "api",
+            "--owner",
+            "agent-b",
+        ])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    assert!(!not_owner.status.success());
+
+    let not_owner_json: serde_json::Value = serde_json::from_slice(&not_owner.stdout).unwrap();
+    assert_eq!(not_owner_json["error"]["code"], "not_owner");
+    assert!(not_owner_json["error"]["message"].is_string());
+
+    let conflict = stead()
+        .args([
+            "--json",
+            "resource",
+            "endpoint",
+            "claim",
+            "--name",
+            "api",
+            "--owner",
+            "agent-c",
+            "--port",
+            "4100",
+        ])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    assert!(!conflict.status.success());
+
+    let conflict_json: serde_json::Value = serde_json::from_slice(&conflict.stdout).unwrap();
+    assert_eq!(conflict_json["error"]["code"], "conflict");
+    assert!(conflict_json["error"]["message"].is_string());
+}
+
+#[test]
 fn test_attention_group_outputs_counts_json() {
     let tmp = TempDir::new().unwrap();
 

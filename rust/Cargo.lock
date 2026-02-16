@@ -974,6 +974,7 @@ dependencies = [
  "serde_json",
  "stead-contracts",
  "stead-daemon",
+ "stead-endpoints",
  "stead-module-sdk",
  "stead-resources",
  "stead-usf",
