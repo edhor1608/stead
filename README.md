@@ -62,8 +62,7 @@ rust/
 ├── stead-module-sdk/    # optional modules: session proxy + context generator
 ├── stead-daemon/        # versioned command/event API over core crates
 ├── stead-cli/           # grouped CLI families, daemon-backed dispatch
-├── stead-ffi/           # UniFFI bridge for macOS
-└── stead-core/          # legacy crate retained during rewrite transition
+└── stead-ffi/           # UniFFI bridge for macOS
 ```
 
 Storage is workspace-local under `.stead/`.

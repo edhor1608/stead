@@ -15,7 +15,6 @@ rust/
 ├── stead-usf/           # Claude/Codex/OpenCode adapters + listing/query contract
 ├── stead-module-sdk/    # session proxy + context generator modules
 ├── stead-ffi/           # UniFFI bridge consumed by macOS app
-├── stead-core/          # legacy crate retained during rewrite transition
 └── stead-test-utils/    # shared test fixtures + CI/doc guard tests
 ```
 

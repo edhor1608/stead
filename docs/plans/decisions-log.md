@@ -676,3 +676,24 @@ See: `docs/plans/universal-session-format.md`
 **Consequences:**
 - `stead-ffi` is now rewrite-module-backed for contracts and sessions.
 - FFI no longer depends on `stead-core`.
+
+---
+
+## 2026-02-17: Remove `stead-core` from Active Rust Workspace Surface
+
+**Context:** After FFI cutover, no active rewrite crate depended on `stead-core`, but the workspace membership and README claims still advertised it as part of the current surface.
+
+**Decision:**
+- Remove `stead-core` from `rust/Cargo.toml` workspace members.
+- Remove `stead-core` entries from shipped README workspace trees.
+- Add guard tests to lock:
+  - no `stead-core` workspace membership
+  - no `stead-core` advertised in shipped READMEs
+
+**Rationale:**
+- Keeps the rewrite surface strictly module-based and forward-only.
+- Prevents accidental re-coupling through workspace defaults and doc drift.
+
+**Consequences:**
+- `cargo test --workspace` no longer executes `stead-core` legacy test suites.
+- Active shipped docs and workspace membership now reflect rewrite-only crates.
