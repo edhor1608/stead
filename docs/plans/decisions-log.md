@@ -627,3 +627,25 @@ See: `docs/plans/universal-session-format.md`
 **Consequences:**
 - Real usage now exists for session->endpoint flow without leaving CLI.
 - CLI integration tests lock deterministic same-project behavior and cross-project negotiation behavior.
+
+---
+
+## 2026-02-17: Documentation Drift Guardrails for Rewrite Surface
+
+**Context:** Authority docs and README-level behavior docs drifted from shipped rewrite behavior. Public docs still described legacy top-level commands and monolith/no-daemon runtime claims.
+
+**Decision:**
+- Add executable documentation guard tests in `rust/stead-test-utils/tests/docs_consistency.rs` to lock:
+  - grouped command-family CLI claims in `/README.md`
+  - daemon-backed Rust workspace description in `/rust/README.md`
+  - daemon-backed runtime statement in `/docs/plans/planning-baseline-2026-02-13.md`
+  - canonical decision text aligned to grouped command families in `/docs/plans/canonical-decisions-2026-02-11.md`
+- Update the above docs to match current rewrite reality.
+
+**Rationale:**
+- README-level docs are authoritative for shipped behavior; drift here creates implementation confusion and planning churn.
+- Locking docs with tests keeps future slices from accidentally reintroducing stale architecture claims.
+
+**Consequences:**
+- `cargo test --workspace` now includes a docs-consistency gate for rewrite command-surface and architecture claims.
+- Planning baseline/canonical docs now align with grouped daemon-backed CLI behavior.

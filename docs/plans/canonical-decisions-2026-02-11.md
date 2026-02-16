@@ -86,7 +86,7 @@ Use **SQLite as canonical storage** for all runtime surfaces (CLI, FFI, macOS ap
 
 ### Decision
 
-Make bare `stead` show a **status overview** (supervision entry point). Keep explicit subcommands for detailed operations. Support `stead status` as explicit equivalent.
+Make bare `stead` show a **status overview** (supervision entry point). Keep explicit grouped command families for detailed operations.
 
 ### Why
 
@@ -96,7 +96,7 @@ Make bare `stead` show a **status overview** (supervision entry point). Keep exp
 
 ### Accepted Alternative
 
-- **Accepted:** Status-first default + subcommand model.
+- **Accepted:** Status-first default + grouped command families model.
 
 ### Rejected Alternatives
 
@@ -107,9 +107,9 @@ Make bare `stead` show a **status overview** (supervision entry point). Keep exp
 
 ### Implementation Direction
 
-1. Add a status command output model usable by both bare `stead` and `stead status`.
+1. Add a status output model usable by bare `stead` and explicit grouped status paths (`stead attention status`, `stead daemon health`).
 2. Ensure `--json` status output is machine-stable.
-3. Keep existing detailed subcommands (`run`, `list`, `show`, etc.).
+3. Keep grouped command families (`contract`, `session`, `resource`, `attention`, `context`, `module`, `daemon`) as the detailed operation surface.
 
 ---
 
@@ -118,4 +118,3 @@ Make bare `stead` show a **status overview** (supervision entry point). Keep exp
 These three decisions are concept-level constraints for Phase 1 (planning lock). Any conflicting statements in other docs should be updated, marked historical, or archived.
 
 This document does not define exact implementation tickets. It defines non-negotiable conceptual direction.
-

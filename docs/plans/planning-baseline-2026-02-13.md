@@ -42,12 +42,13 @@ Source:
 
 ### 2.3 MVP transport architecture
 
-- Current MVP architecture is local monolith behavior: no HTTP API and no daemon requirement.
-- CLI and FFI should call shared Rust core directly.
+- Current MVP architecture is daemon-backed command handling with an in-process daemon API layer.
+- CLI grouped command families dispatch through `stead-daemon` envelopes over reusable domain crates.
+- External network transport is not required for current MVP behavior.
 
 Source:
-- `docs/plans/phase2-revised.md`
-- Current implementation in `rust/stead-cli` and `rust/stead-core`
+- `docs/plans/decisions-log.md`
+- Current implementation in `rust/stead-cli` and `rust/stead-daemon`
 
 ### 2.4 FFI bridge
 
@@ -71,7 +72,7 @@ Source:
 
 These are explicitly still open and should be decided one-by-one:
 
-1. Contract semantics: should `stead run` be allowed to end `completed` if agent execution failed but verification passed?
+1. Contract semantics: should a contract be allowed to end `completed` if agent execution failed but verification passed through transition-only APIs?
 2. State-machine strictness: current pragmatic command behavior vs stricter transition enforcement.
 3. Control-room scope: project-local contract view vs cross-project contract view now.
 
