@@ -508,6 +508,51 @@ fn test_session_group_list_ignores_corrupt_files() {
 }
 
 #[test]
+fn test_session_group_show_returns_single_session_record() {
+    let tmp = TempDir::new().unwrap();
+    let sessions_root = tmp.path().join(".stead").join("sessions");
+    std::fs::create_dir_all(sessions_root.join("claude")).unwrap();
+    std::fs::write(
+        sessions_root.join("claude").join("a.json"),
+        r#"{
+  "session_id":"claude-s-1",
+  "project_path":"/tmp/p-a",
+  "updated_at":1700000002,
+  "messages":[{"role":"user","content":"Alpha"}]
+}"#,
+    )
+    .unwrap();
+
+    let output = stead()
+        .args(["--json", "session", "show", "claude-s-1"])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(json["id"], "claude-s-1");
+    assert_eq!(json["cli"], "Claude");
+    assert_eq!(json["project_path"], "/tmp/p-a");
+}
+
+#[test]
+fn test_session_group_show_missing_returns_typed_json_error() {
+    let tmp = TempDir::new().unwrap();
+
+    let output = stead()
+        .args(["--json", "session", "show", "missing"])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(json["error"]["code"], "not_found");
+    assert!(json["error"]["message"].is_string());
+}
+
+#[test]
 fn test_session_endpoint_returns_null_when_session_proxy_module_disabled() {
     let tmp = TempDir::new().unwrap();
 

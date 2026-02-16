@@ -95,6 +95,9 @@ enum SessionCommand {
         #[arg(long)]
         owner: String,
     },
+    Show {
+        id: String,
+    },
     Parse {
         #[arg(long)]
         cli: String,
@@ -579,6 +582,23 @@ fn handle_session(command: SessionCommand, json_output: bool) -> Result<()> {
                 }
             }
         }
+        SessionCommand::Show { id } => {
+            let sessions = load_sessions_from_workspace()?;
+            let Some(record) = sessions.into_iter().find(|session| session.id == id) else {
+                return render_json_error(
+                    "not_found",
+                    &format!("session not found: {id}"),
+                    json_output,
+                );
+            };
+
+            let payload = session_record_to_json(&record);
+            if json_output {
+                println!("{}", payload);
+            } else {
+                println!("{} {}", payload["cli"], payload["id"]);
+            }
+        }
         SessionCommand::Parse { cli, file } => {
             let raw = fs::read_to_string(&file)?;
             let record = parse_session_record(&cli, &raw)?;
@@ -617,19 +637,23 @@ fn daemon_handle_raw(
 }
 
 fn render_daemon_error(error: ApiError, json_output: bool) -> Result<()> {
+    render_json_error(error.code, &error.message, json_output)
+}
+
+fn render_json_error(code: &str, message: &str, json_output: bool) -> Result<()> {
     if json_output {
         println!(
             "{}",
             json!({
                 "error": {
-                    "code": error.code,
-                    "message": error.message,
+                    "code": code,
+                    "message": message,
                 }
             })
         );
     }
 
-    bail!("{}", error.message)
+    bail!("{message}")
 }
 
 fn unwrap_contract_state(data: ApiResponse) -> Result<Contract> {
