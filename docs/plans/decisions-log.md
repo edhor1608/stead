@@ -580,3 +580,50 @@ See: `docs/plans/universal-session-format.md`
 - Named localhost endpoint brokering is now a real, test-backed capability in rewrite/v1.
 - Core reusable building blocks are in standalone crates suited for separate GitHub export.
 - Remaining M11 future work is enhancement-level (proxy/no-port UX, multi-machine/global coordination), not foundation work.
+
+---
+
+## 2026-02-17: CI Quality Gates Hardened (Coverage + macOS UI Tests)
+
+**Context:** Test-strategy targets and milestone expectations required enforceable quality gates, but CI still lacked strict domain coverage thresholds and direct macOS Control Room test execution.
+
+**Decision:** Extend `.github/workflows/ci.yml` with:
+- `coverage` job using `cargo-llvm-cov`
+- hard line-coverage gates (`--fail-under-lines 90`) for:
+  - `stead-contracts`
+  - `stead-resources`
+  - `stead-usf`
+- `macos-ui-tests` job running:
+  - `xcodebuild -project macos/Stead/Stead.xcodeproj -scheme Stead -destination 'platform=macOS' test`
+- build job now depends on both `coverage` and `macos-ui-tests`
+
+**Rationale:**
+- Converts coverage and UI quality expectations into merge-blocking checks.
+- Prevents regressions in both domain correctness and SwiftUI behavior.
+
+**Consequences:**
+- PR pipeline now enforces coverage policy and macOS app test health by default.
+- Added workflow guard tests in `stead-test-utils` to lock CI contract shape.
+
+---
+
+## 2026-02-17: Session Proxy Endpoint Mapping Exposed in CLI
+
+**Context:** Endpoint mapping existed in module/domain layers, but there was no direct user-facing session command to exercise the session-proxy endpoint concept in real workflows.
+
+**Decision:** Add `stead session endpoint` command (daemon-backed):
+- `stead --json session endpoint --project <path> --owner <owner>`
+- respects module toggles from `.stead/modules.json`
+  - when `session_proxy=false`: returns JSON `null` and exits successfully
+- when enabled:
+  - derives deterministic endpoint name from project path
+  - claims endpoint via daemon `ClaimEndpoint`
+  - returns stable JSON envelope from endpoint claim result
+
+**Rationale:**
+- Turns M11/M6 concept into practical operator-facing functionality.
+- Keeps behavior aligned with module enable/disable controls.
+
+**Consequences:**
+- Real usage now exists for session->endpoint flow without leaving CLI.
+- CLI integration tests lock deterministic same-project behavior and cross-project negotiation behavior.
