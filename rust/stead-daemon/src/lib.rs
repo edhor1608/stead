@@ -5,6 +5,9 @@ use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
 use stead_contracts::{AttentionTier, Contract, ContractStatus, SqliteContractStore};
+use stead_endpoints::{
+    EndpointClaimResult, EndpointError, EndpointEvent, EndpointLease, EndpointRegistry,
+};
 use stead_resources::{ClaimResult, ResourceEvent, ResourceKey, ResourceLease, ResourceRegistry};
 
 pub const API_VERSION: &str = "v1";
@@ -35,6 +38,16 @@ pub enum ApiRequest {
         resource: ResourceKey,
         owner: String,
     },
+    ClaimEndpoint {
+        name: String,
+        owner: String,
+        port: Option<u16>,
+    },
+    ListEndpoints,
+    ReleaseEndpoint {
+        name: String,
+        owner: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -44,6 +57,9 @@ pub enum ApiResponse {
     Contracts(Vec<Contract>),
     Attention(AttentionCounts),
     ResourceClaim(ClaimResult),
+    EndpointClaim(EndpointClaimResult),
+    Endpoints(Vec<EndpointLease>),
+    EndpointReleased(EndpointLease),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -72,6 +88,27 @@ impl ApiError {
     fn invalid_transition(message: impl Into<String>) -> Self {
         Self {
             code: "invalid_transition",
+            message: message.into(),
+        }
+    }
+
+    fn not_owner(message: impl Into<String>) -> Self {
+        Self {
+            code: "not_owner",
+            message: message.into(),
+        }
+    }
+
+    fn conflict(message: impl Into<String>) -> Self {
+        Self {
+            code: "conflict",
+            message: message.into(),
+        }
+    }
+
+    fn endpoint_range_exhausted(message: impl Into<String>) -> Self {
+        Self {
+            code: "endpoint_range_exhausted",
             message: message.into(),
         }
     }
@@ -106,6 +143,12 @@ pub enum DaemonEventKind {
         held_by: String,
         reason: &'static str,
     },
+    EndpointRangeExhausted {
+        name: String,
+        owner: String,
+        requested_port: u16,
+        reason: &'static str,
+    },
 }
 
 #[derive(Debug, Default)]
@@ -120,6 +163,8 @@ pub struct Daemon {
     store: SqliteContractStore,
     resources_path: std::path::PathBuf,
     resources: Arc<Mutex<ResourceRegistry>>,
+    endpoints_path: std::path::PathBuf,
+    endpoints: Arc<Mutex<EndpointRegistry>>,
     events: Arc<Mutex<EventState>>,
 }
 
@@ -135,11 +180,16 @@ impl Daemon {
         let resources_path = db_path.with_file_name("resources.json");
         let mut registry = ResourceRegistry::with_port_range(start, end);
         registry.import_leases(load_resource_leases(&resources_path));
+        let endpoints_path = db_path.with_file_name("endpoints.json");
+        let mut endpoints = EndpointRegistry::with_port_range(start, end);
+        endpoints.import_leases(load_endpoint_leases(&endpoints_path));
 
         Ok(Self {
             store,
             resources_path,
             resources: Arc::new(Mutex::new(registry)),
+            endpoints_path,
+            endpoints: Arc::new(Mutex::new(endpoints)),
             events: Arc::new(Mutex::new(EventState::default())),
         })
     }
@@ -244,6 +294,65 @@ impl Daemon {
 
                 ApiResponse::ResourceClaim(claim)
             }
+            ApiRequest::ClaimEndpoint { name, owner, port } => {
+                let (claim, endpoint_events, leases) = {
+                    let mut registry = self.endpoints.lock().expect("endpoint lock poisoned");
+                    let claim = registry.claim(name.clone(), owner.clone(), port);
+                    let events = registry.drain_events();
+                    let leases = registry.export_leases();
+                    (claim, events, leases)
+                };
+
+                let exhausted = endpoint_events.iter().any(|event| {
+                    matches!(
+                        event,
+                        EndpointEvent::RangeExhausted {
+                            reason: "endpoint_range_exhausted",
+                            ..
+                        }
+                    )
+                });
+
+                for event in endpoint_events {
+                    self.publish_endpoint_event(event);
+                }
+
+                match claim {
+                    EndpointClaimResult::Conflict(conflict) => {
+                        if exhausted {
+                            return Err(ApiError::endpoint_range_exhausted(format!(
+                                "endpoint range exhausted for {}",
+                                conflict.name
+                            )));
+                        }
+
+                        return Err(ApiError::conflict(format!(
+                            "endpoint conflict for {}",
+                            conflict.name
+                        )));
+                    }
+                    success => {
+                        self.persist_endpoint_leases(&leases)?;
+                        ApiResponse::EndpointClaim(success)
+                    }
+                }
+            }
+            ApiRequest::ListEndpoints => {
+                let registry = self.endpoints.lock().expect("endpoint lock poisoned");
+                ApiResponse::Endpoints(registry.list())
+            }
+            ApiRequest::ReleaseEndpoint { name, owner } => {
+                let (released, leases) = {
+                    let mut registry = self.endpoints.lock().expect("endpoint lock poisoned");
+                    let released = registry
+                        .release(&name, &owner)
+                        .map_err(endpoint_error_to_api_error)?;
+                    let leases = registry.export_leases();
+                    (released, leases)
+                };
+                self.persist_endpoint_leases(&leases)?;
+                ApiResponse::EndpointReleased(released)
+            }
         };
 
         Ok(ApiEnvelope {
@@ -306,6 +415,29 @@ impl Daemon {
         let data = serde_json::to_string(leases).map_err(|e| ApiError::storage(e.to_string()))?;
         fs::write(&self.resources_path, data).map_err(|e| ApiError::storage(e.to_string()))
     }
+
+    fn publish_endpoint_event(&self, event: EndpointEvent) {
+        match event {
+            EndpointEvent::RangeExhausted {
+                name,
+                owner,
+                requested_port,
+                reason,
+            } => {
+                self.publish(DaemonEventKind::EndpointRangeExhausted {
+                    name,
+                    owner,
+                    requested_port,
+                    reason,
+                });
+            }
+        }
+    }
+
+    fn persist_endpoint_leases(&self, leases: &[EndpointLease]) -> Result<(), ApiError> {
+        let data = serde_json::to_string(leases).map_err(|e| ApiError::storage(e.to_string()))?;
+        fs::write(&self.endpoints_path, data).map_err(|e| ApiError::storage(e.to_string()))
+    }
 }
 
 fn load_resource_leases(path: &Path) -> Vec<ResourceLease> {
@@ -313,6 +445,28 @@ fn load_resource_leases(path: &Path) -> Vec<ResourceLease> {
         return Vec::new();
     };
     serde_json::from_str(&raw).unwrap_or_default()
+}
+
+fn load_endpoint_leases(path: &Path) -> Vec<EndpointLease> {
+    let Ok(raw) = fs::read_to_string(path) else {
+        return Vec::new();
+    };
+    serde_json::from_str(&raw).unwrap_or_default()
+}
+
+fn endpoint_error_to_api_error(error: EndpointError) -> ApiError {
+    match error {
+        EndpointError::NotFound { name } => {
+            ApiError::not_found(format!("endpoint not found: {name}"))
+        }
+        EndpointError::NotOwner {
+            name,
+            expected_owner,
+            attempted_by,
+        } => ApiError::not_owner(format!(
+            "endpoint {name} owned by {expected_owner}, attempted by {attempted_by}"
+        )),
+    }
 }
 
 pub fn crate_identity() -> &'static str {

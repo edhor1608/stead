@@ -1012,6 +1012,7 @@ dependencies = [
  "serde",
  "serde_json",
  "stead-contracts",
+ "stead-endpoints",
  "stead-resources",
  "tempfile",
 ]
