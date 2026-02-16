@@ -74,9 +74,9 @@ These are explicitly still open and should be decided one-by-one:
 1. Contract semantics: should `stead run` be allowed to end `completed` if agent execution failed but verification passed?
 2. State-machine strictness: current pragmatic command behavior vs stricter transition enforcement.
 3. Control-room scope: project-local contract view vs cross-project contract view now.
-4. CLI default interaction: canonical says bare `stead` should show status overview, but current CLI still defaults to help text.
 
 Resolved on 2026-02-17 (moved out of open decisions):
+- CLI default interaction: bare `stead` now shows status overview by default.
 - M11 endpoint CLI namespace: `resource endpoint`
 - M11 first URL format: `http://<name>.localhost:<port>`
 - M11 crate boundary: new `stead-endpoints` crate
