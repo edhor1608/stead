@@ -200,9 +200,36 @@ class SteadStore: ObservableObject {
     @Published var focusedContractId: String?
     @Published var errorMessage: String?
 
-    enum Tab {
+    enum Tab: CaseIterable {
         case contracts
         case sessions
+
+        var label: String {
+            switch self {
+            case .contracts:
+                return "Contracts"
+            case .sessions:
+                return "Sessions"
+            }
+        }
+
+        var icon: String {
+            switch self {
+            case .contracts:
+                return "doc.text"
+            case .sessions:
+                return "bubble.left.and.bubble.right"
+            }
+        }
+
+        var cliFamilyName: String {
+            switch self {
+            case .contracts:
+                return "contract"
+            case .sessions:
+                return "session"
+            }
+        }
     }
 
     enum MenuBarState {

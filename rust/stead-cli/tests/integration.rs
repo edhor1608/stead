@@ -25,6 +25,28 @@ fn test_help_lists_grouped_command_families() {
 }
 
 #[test]
+fn test_help_preserves_grouped_family_order() {
+    let output = stead().arg("--help").output().unwrap();
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let contract = stdout.find("contract").unwrap();
+    let session = stdout.find("session").unwrap();
+    let resource = stdout.find("resource").unwrap();
+    let attention = stdout.find("attention").unwrap();
+    let context = stdout.find("context").unwrap();
+    let module = stdout.find("module").unwrap();
+    let daemon = stdout.find("daemon").unwrap();
+
+    assert!(contract < session);
+    assert!(session < resource);
+    assert!(resource < attention);
+    assert!(attention < context);
+    assert!(context < module);
+    assert!(module < daemon);
+}
+
+#[test]
 fn test_default_status_json_schema_is_stable() {
     let tmp = TempDir::new().unwrap();
 

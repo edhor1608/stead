@@ -142,6 +142,22 @@ final class SteadStoreViewModelTests: XCTestCase {
         XCTAssertEqual(store.selectedTab, .contracts)
     }
 
+    @MainActor
+    func test_cli_ui_vocabulary_alignment_for_shared_families() {
+        XCTAssertEqual(
+            SteadStore.Tab.allCases.map(\.cliFamilyName),
+            ["contract", "session"]
+        )
+    }
+
+    @MainActor
+    func test_cli_ui_order_alignment_for_sidebar_tabs() {
+        XCTAssertEqual(
+            SteadStore.Tab.allCases.map(\.label),
+            ["Contracts", "Sessions"]
+        )
+    }
+
     private func makeContract(id: String, status: ContractStatus) -> ContractItem {
         ContractItem(
             id: id,
