@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ContractListView: View {
     @ObservedObject var store: SteadStore
+    static let emptyStateHint = "Run `stead contract create --id <id>` to create contracts"
 
     var body: some View {
         HSplitView {
@@ -22,7 +23,7 @@ struct ContractListView: View {
                     Text("No Contracts")
                         .font(.title3)
                         .foregroundStyle(.secondary)
-                    Text("Run `stead run` to create contracts")
+                    Text(Self.emptyStateHint)
                         .font(.caption)
                         .foregroundStyle(.tertiary)
                 }

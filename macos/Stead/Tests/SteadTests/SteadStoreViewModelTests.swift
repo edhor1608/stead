@@ -158,6 +158,13 @@ final class SteadStoreViewModelTests: XCTestCase {
         )
     }
 
+    @MainActor
+    func test_contract_empty_state_guidance_uses_grouped_cli_surface() {
+        let hint = ContractListView.emptyStateHint
+        XCTAssertTrue(hint.contains("stead contract create"))
+        XCTAssertFalse(hint.contains("stead run"))
+    }
+
     private func makeContract(id: String, status: ContractStatus) -> ContractItem {
         ContractItem(
             id: id,
