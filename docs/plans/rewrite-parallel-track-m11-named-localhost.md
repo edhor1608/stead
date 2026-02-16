@@ -1,7 +1,7 @@
 # Rewrite Parallel Track: M11 Named Localhost Broker
 
 Date: 2026-02-16  
-Status: Planned (parallel, non-blocking)  
+Status: Implemented in `rewrite/v1` (parallel, non-blocking)  
 Purpose: Define an execution-ready TDD plan for a Rust-native `portless`-style endpoint broker while M9 continues.
 
 ## 1) Scope
@@ -149,3 +149,20 @@ Guardrails:
 1. Workspace-local (`.stead/`) only (recommended): matches current architecture.
 2. Machine-global endpoint table: better global uniqueness, higher complexity.
 3. Dual scope (workspace default + optional global): flexible, but larger surface.
+
+## 7) Implementation Outcome (2026-02-17)
+
+Implemented defaults:
+1. CLI namespace: `stead resource endpoint ...`
+2. URL format: `http://<name>.localhost:<port>`
+3. Crate boundary: new `stead-endpoints` crate
+4. Persistence scope: workspace-local endpoint lease file via daemon pathing
+
+Completed slices:
+- M11-S1 and M11-S2
+- M11-S3
+- M11-S4
+- M11-S5
+
+See:
+- `docs/plans/decisions-log.md`
