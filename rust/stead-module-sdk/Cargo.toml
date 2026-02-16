@@ -8,3 +8,4 @@ repository = "https://github.com/edhor1608/stead"
 readme = "README.md"
 
 [dependencies]
+stead-endpoints = { path = "../stead-endpoints" }

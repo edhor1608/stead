@@ -545,3 +545,38 @@ See: `docs/plans/universal-session-format.md`
 **Consequences:**
 - CLI now has both `session parse` and `session list`.
 - M10 gates are represented in test suites and run in normal workspace test passes.
+
+---
+
+## 2026-02-16: M11 Named Localhost Broker Implemented (S1-S5)
+
+**Context:** The parallel M11 plan was defined but not yet executed. We needed executable, reusable implementation slices with strict TDD checkpoints and no legacy coupling.
+
+**Decision:** Implement M11 end-to-end using the recommended decision-gate defaults:
+- CLI namespace: `stead resource endpoint ...`
+- First URL format: `http://<name>.localhost:<port>`
+- Crate boundary: new reusable crate `stead-endpoints`
+- Persistence scope: workspace-local (`.stead/endpoints.json` through daemon storage pathing)
+
+**Implemented slices:**
+- **M11-S1/S2** (`stead-endpoints`):
+  - Domain tests for claim/release/idempotency/import-export.
+  - Deterministic negotiation tests and range-exhaustion escalation events.
+- **M11-S3** (`stead-daemon`):
+  - API requests/responses for endpoint claim/list/release.
+  - Typed errors for `not_found`, `not_owner`, `conflict`, `endpoint_range_exhausted`.
+- **M11-S4** (`stead-cli`):
+  - `resource endpoint claim|list|release` flows.
+  - Stable JSON payload tests and typed JSON error output (`error.code`, `error.message`).
+- **M11-S5** (`stead-module-sdk`):
+  - Session-proxy endpoint mapping tests for deterministic project mapping, module-disable fallback, and project scoping.
+
+**Rationale:**
+- Delivers the `portless` concept in a Rust-native, exportable module path.
+- Keeps integration via existing seams (daemon, CLI, module SDK) instead of adding architecture layers.
+- Locks behavior with tests before expanding features.
+
+**Consequences:**
+- Named localhost endpoint brokering is now a real, test-backed capability in rewrite/v1.
+- Core reusable building blocks are in standalone crates suited for separate GitHub export.
+- Remaining M11 future work is enhancement-level (proxy/no-port UX, multi-machine/global coordination), not foundation work.

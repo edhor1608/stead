@@ -1037,6 +1037,9 @@ dependencies = [
 [[package]]
 name = "stead-module-sdk"
 version = "0.1.0"
+dependencies = [
+ "stead-endpoints",
+]
 
 [[package]]
 name = "stead-resources"

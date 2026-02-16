@@ -1,5 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
+use stead_endpoints::{EndpointClaimResult, EndpointRegistry};
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SessionIdentity(String);
 
@@ -36,11 +38,21 @@ pub enum SessionProxyError {
     UnknownIdentity,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SessionEndpoint {
+    pub project: String,
+    pub name: String,
+    pub owner: String,
+    pub port: u16,
+    pub url: String,
+}
+
 #[derive(Debug, Default)]
 pub struct SessionProxy {
     next_identity: u64,
     next_token: u64,
     identities_by_project: HashMap<String, HashSet<SessionIdentity>>,
+    endpoint_registry: EndpointRegistry,
 }
 
 impl SessionProxy {
@@ -95,6 +107,38 @@ impl SessionProxy {
         if let Some(identities) = self.identities_by_project.get_mut(project.as_ref()) {
             identities.remove(identity);
         }
+    }
+
+    pub fn resolve_project_endpoint(
+        &mut self,
+        modules: &ModuleManager,
+        project: impl AsRef<str>,
+        owner: impl Into<String>,
+    ) -> Result<Option<SessionEndpoint>, ModuleError> {
+        if !modules.is_enabled(ModuleName::SessionProxy) {
+            return Ok(None);
+        }
+
+        let project = project.as_ref();
+        let owner = owner.into();
+        let endpoint_name = endpoint_name_from_project(project);
+        let claim = self
+            .endpoint_registry
+            .claim(endpoint_name, owner, None);
+
+        let lease = match claim {
+            EndpointClaimResult::Claimed(lease) => lease,
+            EndpointClaimResult::Negotiated { assigned, .. } => assigned,
+            EndpointClaimResult::Conflict(_) => return Ok(None),
+        };
+
+        Ok(Some(SessionEndpoint {
+            project: project.to_string(),
+            name: lease.name.clone(),
+            owner: lease.owner.clone(),
+            port: lease.port,
+            url: lease.url(),
+        }))
     }
 
     fn identity_exists(&self, project: &str, identity: &SessionIdentity) -> bool {
@@ -302,6 +346,30 @@ fn deterministic_context_fallback(
         used_fallback: true,
         citations,
         confidence: 0.4,
+    }
+}
+
+fn endpoint_name_from_project(project: &str) -> String {
+    let mut normalized = project
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() {
+                ch.to_ascii_lowercase()
+            } else {
+                '-'
+            }
+        })
+        .collect::<String>();
+
+    while normalized.contains("--") {
+        normalized = normalized.replace("--", "-");
+    }
+    let normalized = normalized.trim_matches('-');
+
+    if normalized.is_empty() {
+        "stead-project".to_string()
+    } else {
+        format!("stead-{}", normalized)
     }
 }
 
