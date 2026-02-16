@@ -1029,7 +1029,10 @@ dependencies = [
 name = "stead-ffi"
 version = "0.2.0"
 dependencies = [
- "stead-core",
+ "stead-contracts",
+ "stead-daemon",
+ "stead-usf",
+ "tempfile",
  "thiserror 2.0.18",
  "uniffi",
 ]

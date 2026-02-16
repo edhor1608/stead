@@ -649,3 +649,30 @@ See: `docs/plans/universal-session-format.md`
 **Consequences:**
 - `cargo test --workspace` now includes a docs-consistency gate for rewrite command-surface and architecture claims.
 - Planning baseline/canonical docs now align with grouped daemon-backed CLI behavior.
+
+---
+
+## 2026-02-17: FFI Boundary Cutover to Rewrite Crates
+
+**Context:** `stead-ffi` was still coupled to `stead-core`, while CLI/runtime behavior had moved to daemon-backed rewrite crates. This created cross-surface drift between macOS and CLI behavior.
+
+**Decision:**
+- Replace `stead-ffi` dependency on `stead-core` with rewrite crates:
+  - `stead-daemon`
+  - `stead-contracts`
+  - `stead-usf`
+- Route FFI contract reads through daemon API requests (`ListContracts`, `GetContract`) against workspace `.stead/stead.db`.
+- Route FFI session listing through workspace-local `.stead/sessions/{claude,codex,opencode}` with `stead-usf` adapters/query.
+- Add strict FFI tests for:
+  - daemon-backed contract read path
+  - typed not-found handling
+  - workspace-local session fixture loading
+  - manifest guard preventing `stead-core` dependency regression
+
+**Rationale:**
+- Keeps macOS read paths aligned with rewrite architecture seams.
+- Reduces backsliding risk by making boundary coupling executable in tests.
+
+**Consequences:**
+- `stead-ffi` is now rewrite-module-backed for contracts and sessions.
+- FFI no longer depends on `stead-core`.

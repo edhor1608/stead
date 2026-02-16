@@ -63,7 +63,7 @@ rust/
 ├── stead-daemon/        # versioned command/event API over core crates
 ├── stead-cli/           # grouped CLI families, daemon-backed dispatch
 ├── stead-ffi/           # UniFFI bridge for macOS
-└── stead-core/          # legacy bridge used by current FFI compatibility path
+└── stead-core/          # legacy crate retained during rewrite transition
 ```
 
 Storage is workspace-local under `.stead/`.
