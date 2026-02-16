@@ -53,10 +53,39 @@ jobs:
       - name: Run tests
         run: cargo test --workspace
 
+  coverage:
+    name: Coverage Gates
+    runs-on: macos-latest
+    needs: [test]
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      - uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Enforce stead-contracts line coverage >= 90%
+        run: cargo llvm-cov -p stead-contracts --fail-under-lines 90 --summary-only
+
+      - name: Enforce stead-resources line coverage >= 90%
+        run: cargo llvm-cov -p stead-resources --fail-under-lines 90 --summary-only
+
+      - name: Enforce stead-usf line coverage >= 90%
+        run: cargo llvm-cov -p stead-usf --fail-under-lines 90 --summary-only
+
   build:
     name: Build (macOS aarch64)
     runs-on: macos-latest
-    needs: [check, test]
+    needs: [check, test, coverage]
     defaults:
       run:
         working-directory: rust
