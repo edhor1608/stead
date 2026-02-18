@@ -222,8 +222,13 @@ class SteadStore: ObservableObject {
     }
 
     func loadSessions() {
-        let ffiSessions = listSessions(cliFilter: nil, project: nil, limit: 50)
-        sessions = ffiSessions.map { SessionItem(ffi: $0) }
+        Task.detached { [weak self] in
+            let ffiSessions = listSessions(cliFilter: nil, project: nil, limit: 50)
+            let mapped = ffiSessions.map { SessionItem(ffi: $0) }
+            await MainActor.run {
+                self?.sessions = mapped
+            }
+        }
     }
 
     func claim(contract: ContractItem) {
