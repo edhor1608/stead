@@ -7,6 +7,8 @@ uniffi::setup_scaffolding!();
 
 use std::path::Path;
 
+use stead_core::storage::Storage;
+
 // -- FFI Enum types --
 
 #[derive(uniffi::Enum)]
@@ -64,6 +66,7 @@ impl From<stead_core::usf::CliType> for FfiCliType {
 #[derive(uniffi::Record)]
 pub struct FfiContract {
     pub id: String,
+    pub project_path: String,
     pub task: String,
     pub verification: String,
     pub status: FfiContractStatus,
@@ -79,6 +82,7 @@ impl From<stead_core::schema::Contract> for FfiContract {
     fn from(c: stead_core::schema::Contract) -> Self {
         Self {
             id: c.id,
+            project_path: c.project_path,
             task: c.task,
             verification: c.verification,
             status: c.status.into(),
@@ -133,20 +137,144 @@ pub enum FfiError {
 
 #[uniffi::export]
 pub fn list_contracts(cwd: String) -> Result<Vec<FfiContract>, FfiError> {
-    let contracts =
-        stead_core::storage::list_contracts(Path::new(&cwd)).map_err(|e| FfiError::Storage {
+    let db = stead_core::storage::sqlite::open_default(Path::new(&cwd)).map_err(|e| {
+        FfiError::Storage {
             message: e.to_string(),
-        })?;
+        }
+    })?;
+    let contracts = db.load_all_contracts().map_err(|e| FfiError::Storage {
+        message: e.to_string(),
+    })?;
     Ok(contracts.into_iter().map(FfiContract::from).collect())
 }
 
 #[uniffi::export]
 pub fn get_contract(id: String, cwd: String) -> Result<FfiContract, FfiError> {
-    let contract = stead_core::storage::read_contract(&id, Path::new(&cwd))
+    let db = stead_core::storage::sqlite::open_default(Path::new(&cwd)).map_err(|e| {
+        FfiError::Storage {
+            message: e.to_string(),
+        }
+    })?;
+    let contract = db
+        .load_contract(&id)
         .map_err(|e| FfiError::Storage {
             message: e.to_string(),
         })?
         .ok_or(FfiError::NotFound { id })?;
+    Ok(FfiContract::from(contract))
+}
+
+#[uniffi::export]
+pub fn claim_contract(id: String, owner: String, cwd: String) -> Result<FfiContract, FfiError> {
+    let db = stead_core::storage::sqlite::open_default(Path::new(&cwd)).map_err(|e| {
+        FfiError::Storage {
+            message: e.to_string(),
+        }
+    })?;
+
+    let mut contract = db
+        .load_contract(&id)
+        .map_err(|e| FfiError::Storage {
+            message: e.to_string(),
+        })?
+        .ok_or(FfiError::NotFound { id })?;
+
+    if contract.status == stead_core::schema::ContractStatus::Pending {
+        contract.mark_ready().map_err(|e| FfiError::Storage {
+            message: e.to_string(),
+        })?;
+    }
+    contract.claim(owner).map_err(|e| FfiError::Storage {
+        message: e.to_string(),
+    })?;
+
+    db.update_contract(&contract)
+        .map_err(|e| FfiError::Storage {
+            message: e.to_string(),
+        })?;
+
+    Ok(FfiContract::from(contract))
+}
+
+#[uniffi::export]
+pub fn cancel_contract(id: String, cwd: String) -> Result<FfiContract, FfiError> {
+    let db = stead_core::storage::sqlite::open_default(Path::new(&cwd)).map_err(|e| {
+        FfiError::Storage {
+            message: e.to_string(),
+        }
+    })?;
+
+    let mut contract = db
+        .load_contract(&id)
+        .map_err(|e| FfiError::Storage {
+            message: e.to_string(),
+        })?
+        .ok_or(FfiError::NotFound { id })?;
+
+    contract.cancel().map_err(|e| FfiError::Storage {
+        message: e.to_string(),
+    })?;
+
+    db.update_contract(&contract)
+        .map_err(|e| FfiError::Storage {
+            message: e.to_string(),
+        })?;
+
+    Ok(FfiContract::from(contract))
+}
+
+#[uniffi::export]
+pub fn verify_contract(id: String, cwd: String) -> Result<FfiContract, FfiError> {
+    use std::process::Command;
+
+    let db = stead_core::storage::sqlite::open_default(Path::new(&cwd)).map_err(|e| {
+        FfiError::Storage {
+            message: e.to_string(),
+        }
+    })?;
+
+    let mut contract = db
+        .load_contract(&id)
+        .map_err(|e| FfiError::Storage {
+            message: e.to_string(),
+        })?
+        .ok_or(FfiError::NotFound { id })?;
+
+    let (shell, flag) = if cfg!(target_os = "windows") {
+        ("cmd", "/c")
+    } else {
+        ("sh", "-c")
+    };
+
+    let output = Command::new(shell)
+        .args([flag, &contract.verification])
+        .current_dir(&cwd)
+        .output()
+        .map_err(|e| FfiError::Storage {
+            message: format!("Failed to run verification: {}", e),
+        })?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let combined = [stdout.trim(), stderr.trim()]
+        .iter()
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
+        .collect::<Vec<_>>()
+        .join("\n");
+    let output_str = if combined.is_empty() {
+        None
+    } else {
+        Some(combined)
+    };
+
+    contract.complete(output.status.success(), output_str);
+
+    db.update_contract(&contract)
+        .map_err(|e| FfiError::Storage {
+            message: e.to_string(),
+        })?;
+
     Ok(FfiContract::from(contract))
 }
 
@@ -170,4 +298,54 @@ pub fn list_sessions(
 
     sessions.truncate(limit as usize);
     sessions.into_iter().map(FfiSessionSummary::from).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+    use stead_core::schema::Contract;
+
+    fn make_temp_project_dir() -> PathBuf {
+        let unique = format!(
+            "stead-ffi-test-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system time before epoch")
+                .as_nanos()
+        );
+        let dir = std::env::temp_dir().join(unique);
+        std::fs::create_dir_all(&dir).expect("failed to create temp project");
+        dir
+    }
+
+    #[test]
+    fn verify_contract_runs_in_given_cwd() {
+        let project = make_temp_project_dir();
+        let cwd = project.to_string_lossy().to_string();
+        let db = stead_core::storage::sqlite::open_default(&project).expect("open sqlite");
+        let proof = "ffi-verify-proof.txt";
+
+        let verify_cmd = if cfg!(target_os = "windows") {
+            format!("echo ok > {}", proof)
+        } else {
+            format!("printf ok > {}", proof)
+        };
+        let mut contract = Contract::new("test task", verify_cmd);
+        contract.project_path = cwd.clone();
+        let id = contract.id.clone();
+        db.save_contract(&contract).expect("save contract");
+
+        let _ = verify_contract(id, cwd).expect("verify contract");
+
+        assert!(
+            project.join(proof).exists(),
+            "verification command did not run from provided cwd"
+        );
+
+        let stray = std::env::current_dir().expect("current dir").join(proof);
+        let _ = std::fs::remove_file(stray);
+        let _ = std::fs::remove_dir_all(project);
+    }
 }

@@ -1,6 +1,6 @@
 //! CLI argument parsing with clap
 
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 
 /// stead - Operating environment for agent-driven development
 #[derive(Parser, Debug)]
@@ -26,6 +26,10 @@ pub enum Commands {
         /// Shell command to verify task completion (exit 0 = pass)
         #[arg(long)]
         verify: String,
+
+        /// Which execution engine to use for the task (non-interactive)
+        #[arg(long, value_enum, default_value = "claude")]
+        engine: RunEngine,
     },
 
     /// Create a contract without executing it
@@ -80,6 +84,15 @@ pub enum Commands {
     },
 }
 
+#[derive(ValueEnum, Debug, Clone, Copy)]
+pub enum RunEngine {
+    Claude,
+    Codex,
+    #[value(name = "opencode", alias = "open-code")]
+    OpenCode,
+    None,
+}
+
 #[derive(Subcommand, Debug)]
 pub enum SessionCommands {
     /// List sessions from all installed AI CLIs
@@ -122,9 +135,27 @@ mod tests {
     fn test_run_command_parsing() {
         let cli = Cli::parse_from(["stead", "run", "fix the bug", "--verify", "cargo test"]);
         match cli.command {
-            Commands::Run { task, verify } => {
+            Commands::Run {
+                task,
+                verify,
+                engine,
+            } => {
                 assert_eq!(task, "fix the bug");
                 assert_eq!(verify, "cargo test");
+                assert!(matches!(engine, RunEngine::Claude));
+            }
+            _ => panic!("Expected Run command"),
+        }
+    }
+
+    #[test]
+    fn test_run_command_engine() {
+        let cli = Cli::parse_from([
+            "stead", "run", "do it", "--verify", "true", "--engine", "codex",
+        ]);
+        match cli.command {
+            Commands::Run { engine, .. } => {
+                assert!(matches!(engine, RunEngine::Codex));
             }
             _ => panic!("Expected Run command"),
         }

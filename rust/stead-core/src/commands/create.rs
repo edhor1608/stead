@@ -8,7 +8,7 @@ use anyhow::Result;
 pub fn execute(task: &str, verify_cmd: &str, json_output: bool) -> Result<()> {
     let cwd = std::env::current_dir()?;
     let db = storage::sqlite::open_default(&cwd)?;
-    execute_with_storage(task, verify_cmd, json_output, &db)
+    execute_with_storage(task, verify_cmd, json_output, &cwd, &db)
 }
 
 /// Execute with a specific storage backend
@@ -16,9 +16,11 @@ pub fn execute_with_storage(
     task: &str,
     verify_cmd: &str,
     json_output: bool,
+    cwd: &std::path::Path,
     storage: &dyn Storage,
 ) -> Result<()> {
-    let contract = Contract::new(task, verify_cmd);
+    let mut contract = Contract::new(task, verify_cmd);
+    contract.project_path = cwd.to_string_lossy().to_string();
     storage.save_contract(&contract)?;
 
     if json_output {
@@ -35,6 +37,7 @@ mod tests {
     use super::*;
     use crate::schema::ContractStatus;
     use crate::storage::sqlite::SqliteStorage;
+    use std::path::Path;
 
     fn test_db() -> SqliteStorage {
         SqliteStorage::open_in_memory().unwrap()
@@ -43,7 +46,7 @@ mod tests {
     #[test]
     fn test_create_contract() {
         let db = test_db();
-        execute_with_storage("my task", "echo ok", false, &db).unwrap();
+        execute_with_storage("my task", "echo ok", false, Path::new("/tmp"), &db).unwrap();
 
         let contracts = db.load_all_contracts().unwrap();
         assert_eq!(contracts.len(), 1);

@@ -15,8 +15,12 @@ fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Run { task, verify } => {
-            commands::run::execute(&task, &verify, cli.json)?;
+        Commands::Run {
+            task,
+            verify,
+            engine,
+        } => {
+            commands::run::execute(&task, &verify, engine, cli.json)?;
         }
         Commands::Create { task, verify } => {
             commands::create::execute(&task, &verify, cli.json)?;

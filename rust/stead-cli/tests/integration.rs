@@ -46,7 +46,14 @@ fn test_run_and_list() {
 
     // Run a contract
     stead()
-        .args(["run", "test task", "--verify", "echo success"])
+        .args([
+            "run",
+            "test task",
+            "--verify",
+            "echo success",
+            "--engine",
+            "none",
+        ])
         .current_dir(tmp.path())
         .assert()
         .success()
@@ -67,7 +74,7 @@ fn test_run_failing_verification() {
     let tmp = TempDir::new().unwrap();
 
     stead()
-        .args(["run", "test task", "--verify", "false"])
+        .args(["run", "test task", "--verify", "false", "--engine", "none"])
         .current_dir(tmp.path())
         .assert()
         .success()
@@ -88,7 +95,15 @@ fn test_show_contract() {
 
     // Run a contract first
     let output = stead()
-        .args(["run", "test task", "--verify", "echo hello", "--json"])
+        .args([
+            "run",
+            "test task",
+            "--verify",
+            "echo hello",
+            "--engine",
+            "none",
+            "--json",
+        ])
         .current_dir(tmp.path())
         .output()
         .unwrap();
@@ -125,7 +140,15 @@ fn test_verify_command() {
 
     // Run a contract first
     let output = stead()
-        .args(["run", "test task", "--verify", "echo verified", "--json"])
+        .args([
+            "run",
+            "test task",
+            "--verify",
+            "echo verified",
+            "--engine",
+            "none",
+            "--json",
+        ])
         .current_dir(tmp.path())
         .output()
         .unwrap();
@@ -148,14 +171,28 @@ fn test_list_filter_by_status() {
 
     // Create a passing contract
     stead()
-        .args(["run", "passing task", "--verify", "true"])
+        .args([
+            "run",
+            "passing task",
+            "--verify",
+            "true",
+            "--engine",
+            "none",
+        ])
         .current_dir(tmp.path())
         .assert()
         .success();
 
     // Create a failing contract
     stead()
-        .args(["run", "failing task", "--verify", "false"])
+        .args([
+            "run",
+            "failing task",
+            "--verify",
+            "false",
+            "--engine",
+            "none",
+        ])
         .current_dir(tmp.path())
         .assert()
         .success();
@@ -185,7 +222,15 @@ fn test_json_output() {
 
     // Run with --json
     stead()
-        .args(["run", "test task", "--verify", "echo ok", "--json"])
+        .args([
+            "run",
+            "test task",
+            "--verify",
+            "echo ok",
+            "--engine",
+            "none",
+            "--json",
+        ])
         .current_dir(tmp.path())
         .assert()
         .success()

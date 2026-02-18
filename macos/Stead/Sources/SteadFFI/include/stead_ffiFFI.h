@@ -251,6 +251,16 @@ typedef void (*UniffiForeignFutureCompleteVoid)(uint64_t, UniffiForeignFutureStr
     );
 
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_STEAD_FFI_FN_FUNC_CANCEL_CONTRACT
+#define UNIFFI_FFIDEF_UNIFFI_STEAD_FFI_FN_FUNC_CANCEL_CONTRACT
+RustBuffer uniffi_stead_ffi_fn_func_cancel_contract(RustBuffer id, RustBuffer cwd, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_STEAD_FFI_FN_FUNC_CLAIM_CONTRACT
+#define UNIFFI_FFIDEF_UNIFFI_STEAD_FFI_FN_FUNC_CLAIM_CONTRACT
+RustBuffer uniffi_stead_ffi_fn_func_claim_contract(RustBuffer id, RustBuffer owner, RustBuffer cwd, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_STEAD_FFI_FN_FUNC_GET_CONTRACT
 #define UNIFFI_FFIDEF_UNIFFI_STEAD_FFI_FN_FUNC_GET_CONTRACT
 RustBuffer uniffi_stead_ffi_fn_func_get_contract(RustBuffer id, RustBuffer cwd, RustCallStatus *_Nonnull out_status
@@ -264,6 +274,11 @@ RustBuffer uniffi_stead_ffi_fn_func_list_contracts(RustBuffer cwd, RustCallStatu
 #ifndef UNIFFI_FFIDEF_UNIFFI_STEAD_FFI_FN_FUNC_LIST_SESSIONS
 #define UNIFFI_FFIDEF_UNIFFI_STEAD_FFI_FN_FUNC_LIST_SESSIONS
 RustBuffer uniffi_stead_ffi_fn_func_list_sessions(RustBuffer cli_filter, RustBuffer project, uint32_t limit, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_STEAD_FFI_FN_FUNC_VERIFY_CONTRACT
+#define UNIFFI_FFIDEF_UNIFFI_STEAD_FFI_FN_FUNC_VERIFY_CONTRACT
+RustBuffer uniffi_stead_ffi_fn_func_verify_contract(RustBuffer id, RustBuffer cwd, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_FFI_STEAD_FFI_RUSTBUFFER_ALLOC
@@ -546,6 +561,18 @@ void ffi_stead_ffi_rust_future_free_void(uint64_t handle
 void ffi_stead_ffi_rust_future_complete_void(uint64_t handle, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_STEAD_FFI_CHECKSUM_FUNC_CANCEL_CONTRACT
+#define UNIFFI_FFIDEF_UNIFFI_STEAD_FFI_CHECKSUM_FUNC_CANCEL_CONTRACT
+uint16_t uniffi_stead_ffi_checksum_func_cancel_contract(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_STEAD_FFI_CHECKSUM_FUNC_CLAIM_CONTRACT
+#define UNIFFI_FFIDEF_UNIFFI_STEAD_FFI_CHECKSUM_FUNC_CLAIM_CONTRACT
+uint16_t uniffi_stead_ffi_checksum_func_claim_contract(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_STEAD_FFI_CHECKSUM_FUNC_GET_CONTRACT
 #define UNIFFI_FFIDEF_UNIFFI_STEAD_FFI_CHECKSUM_FUNC_GET_CONTRACT
 uint16_t uniffi_stead_ffi_checksum_func_get_contract(void
@@ -561,6 +588,12 @@ uint16_t uniffi_stead_ffi_checksum_func_list_contracts(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_STEAD_FFI_CHECKSUM_FUNC_LIST_SESSIONS
 #define UNIFFI_FFIDEF_UNIFFI_STEAD_FFI_CHECKSUM_FUNC_LIST_SESSIONS
 uint16_t uniffi_stead_ffi_checksum_func_list_sessions(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_STEAD_FFI_CHECKSUM_FUNC_VERIFY_CONTRACT
+#define UNIFFI_FFIDEF_UNIFFI_STEAD_FFI_CHECKSUM_FUNC_VERIFY_CONTRACT
+uint16_t uniffi_stead_ffi_checksum_func_verify_contract(void
     
 );
 #endif

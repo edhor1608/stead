@@ -112,6 +112,12 @@ pub struct Contract {
     /// Unique identifier (timestamp-random in base36)
     pub id: String,
 
+    /// Project path this contract belongs to (absolute path preferred).
+    ///
+    /// For legacy JSONL entries this may be empty.
+    #[serde(default)]
+    pub project_path: String,
+
     /// Human-readable task description for the agent
     pub task: String,
 
@@ -150,6 +156,7 @@ impl Contract {
     pub fn new(task: impl Into<String>, verification: impl Into<String>) -> Self {
         Self {
             id: generate_id(),
+            project_path: String::new(),
             task: task.into(),
             verification: verification.into(),
             status: ContractStatus::Pending,
