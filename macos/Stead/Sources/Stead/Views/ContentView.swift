@@ -23,14 +23,21 @@ struct ContentView: View {
                 }
 
                 if let error = store.errorMessage, !error.isEmpty {
-                    Text(error)
-                        .font(.caption)
-                        .foregroundStyle(.white)
-                        .padding(8)
-                        .background(.red.opacity(0.85))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                        .padding()
-                        .textSelection(.enabled)
+                    HStack(spacing: 8) {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(.white)
+                            .textSelection(.enabled)
+                        Button(action: { store.errorMessage = nil }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.white.opacity(0.8))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(8)
+                    .background(.red.opacity(0.85))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .padding()
                 }
             }
         }

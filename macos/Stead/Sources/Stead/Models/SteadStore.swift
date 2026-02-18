@@ -190,28 +190,35 @@ class SteadStore: ObservableObject {
     }
 
     func loadContracts() {
-        let projectPaths = discoverSteadProjects(roots: workspaceRoots, maxDepth: discoveryMaxDepth)
+        let roots = workspaceRoots
+        let maxDepth = discoveryMaxDepth
 
-        var newContracts: [ContractItem] = []
-        var errors: [String] = []
-        for projectPath in projectPaths {
-            do {
-                let ffiContracts = try listContracts(cwd: projectPath)
-                newContracts.append(contentsOf: ffiContracts.map { ContractItem(ffi: $0) })
-            } catch {
-                // Keep going; one broken DB shouldn't blank the whole Control Room.
-                errors.append("Failed to load contracts for \(projectPath): \(error.localizedDescription)")
+        Task.detached { [weak self] in
+            let projectPaths = Self.discoverSteadProjects(roots: roots, maxDepth: maxDepth)
+
+            var newContracts: [ContractItem] = []
+            var errors: [String] = []
+            for projectPath in projectPaths {
+                do {
+                    let ffiContracts = try listContracts(cwd: projectPath)
+                    newContracts.append(contentsOf: ffiContracts.map { ContractItem(ffi: $0) })
+                } catch {
+                    // Keep going; one broken DB shouldn't blank the whole Control Room.
+                    errors.append("Failed to load contracts for \(projectPath): \(error.localizedDescription)")
+                }
+            }
+
+            await MainActor.run {
+                guard let self else { return }
+                // Fire notifications on status transitions before swapping state.
+                self.postNotificationsIfNeeded(next: newContracts)
+                self.contracts = newContracts
+                self.errorMessage = errors.isEmpty ? nil : errors.joined(separator: "\n")
+
+                // Keep file watchers aligned with what we're displaying.
+                self.rebuildWatchers(projectPaths: projectPaths)
             }
         }
-
-        // Fire notifications on status transitions before swapping state.
-        postNotificationsIfNeeded(next: newContracts)
-
-        contracts = newContracts
-        errorMessage = errors.isEmpty ? nil : errors.joined(separator: "\n")
-
-        // Keep file watchers aligned with what we're displaying.
-        rebuildWatchers(projectPaths: projectPaths)
     }
 
     func loadSessions() {
@@ -220,29 +227,41 @@ class SteadStore: ObservableObject {
     }
 
     func claim(contract: ContractItem) {
-        do {
-            _ = try claimContract(id: contract.id, owner: ownerName, cwd: contract.projectPath)
-            refresh()
-        } catch {
-            errorMessage = "Failed to claim contract: \(error.localizedDescription)"
+        Task.detached { [contractId = contract.id, ownerName = ownerName, projectPath = contract.projectPath] in
+            do {
+                _ = try claimContract(id: contractId, owner: ownerName, cwd: projectPath)
+                await MainActor.run { [weak self] in self?.refresh() }
+            } catch {
+                await MainActor.run { [weak self] in
+                    self?.errorMessage = "Failed to claim contract: \(error.localizedDescription)"
+                }
+            }
         }
     }
 
     func cancel(contract: ContractItem) {
-        do {
-            _ = try cancelContract(id: contract.id, cwd: contract.projectPath)
-            refresh()
-        } catch {
-            errorMessage = "Failed to cancel contract: \(error.localizedDescription)"
+        Task.detached { [contractId = contract.id, projectPath = contract.projectPath] in
+            do {
+                _ = try cancelContract(id: contractId, cwd: projectPath)
+                await MainActor.run { [weak self] in self?.refresh() }
+            } catch {
+                await MainActor.run { [weak self] in
+                    self?.errorMessage = "Failed to cancel contract: \(error.localizedDescription)"
+                }
+            }
         }
     }
 
     func verify(contract: ContractItem) {
-        do {
-            _ = try verifyContract(id: contract.id, cwd: contract.projectPath)
-            refresh()
-        } catch {
-            errorMessage = "Failed to verify contract: \(error.localizedDescription)"
+        Task.detached { [contractId = contract.id, projectPath = contract.projectPath] in
+            do {
+                _ = try verifyContract(id: contractId, cwd: projectPath)
+                await MainActor.run { [weak self] in self?.refresh() }
+            } catch {
+                await MainActor.run { [weak self] in
+                    self?.errorMessage = "Failed to verify contract: \(error.localizedDescription)"
+                }
+            }
         }
     }
 
@@ -281,23 +300,24 @@ class SteadStore: ObservableObject {
         return candidates.filter { FileManager.default.fileExists(atPath: $0) }
     }
 
-    private func discoverSteadProjects(roots: [String], maxDepth: Int) -> [String] {
+    private static func discoverSteadProjects(roots: [String], maxDepth: Int) -> [String] {
         var out: [String] = []
         var seen: Set<String> = []
 
         for root in roots {
-            walkDir(path: root, depth: maxDepth, out: &out, seen: &seen)
+            Self.walkDir(path: root, depth: maxDepth, out: &out, seen: &seen)
         }
 
         return out.sorted()
     }
 
-    private func walkDir(path: String, depth: Int, out: inout [String], seen: inout Set<String>) {
+    private static func walkDir(path: String, depth: Int, out: inout [String], seen: inout Set<String>) {
         guard depth >= 0 else { return }
 
         // If this directory is a Stead project, record it and do not recurse further.
         let dbPath = (path as NSString).appendingPathComponent(".stead/stead.db")
-        if FileManager.default.fileExists(atPath: dbPath) {
+        let legacyPath = (path as NSString).appendingPathComponent(".stead/contracts.jsonl")
+        if FileManager.default.fileExists(atPath: dbPath) || FileManager.default.fileExists(atPath: legacyPath) {
             if !seen.contains(path) {
                 seen.insert(path)
                 out.append(path)
@@ -316,7 +336,7 @@ class SteadStore: ObservableObject {
 
             var isDir: ObjCBool = false
             if FileManager.default.fileExists(atPath: child, isDirectory: &isDir), isDir.boolValue {
-                walkDir(path: child, depth: depth - 1, out: &out, seen: &seen)
+                Self.walkDir(path: child, depth: depth - 1, out: &out, seen: &seen)
             }
         }
     }
@@ -404,10 +424,11 @@ final class FileWatcher {
             return nil
         }
 
+        let queue = DispatchQueue(label: "stead.filewatcher")
         source = DispatchSource.makeFileSystemObjectSource(
             fileDescriptor: fd,
             eventMask: [.write, .rename, .delete, .extend, .attrib, .link, .revoke],
-            queue: DispatchQueue.global(qos: .utility)
+            queue: queue
         )
 
         // Debounce bursts (SQLite WAL can be chatty).
@@ -415,7 +436,7 @@ final class FileWatcher {
         source.setEventHandler {
             if pending { return }
             pending = true
-            DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 0.25) {
+            queue.asyncAfter(deadline: .now() + 0.25) {
                 pending = false
                 onChange()
             }
