@@ -297,7 +297,10 @@ class SteadStore: ObservableObject {
             "\(home)/Projects",
             home,
         ]
-        return candidates.filter { FileManager.default.fileExists(atPath: $0) }
+        return candidates.filter {
+            var isDir: ObjCBool = false
+            return FileManager.default.fileExists(atPath: $0, isDirectory: &isDir) && isDir.boolValue
+        }
     }
 
     private static func discoverSteadProjects(roots: [String], maxDepth: Int) -> [String] {
@@ -356,8 +359,8 @@ class SteadStore: ObservableObject {
                         self?.refresh()
                     }
                 }
-                if watcher != nil {
-                    watchers.append(watcher!)
+                if let watcher = watcher {
+                    watchers.append(watcher)
                 }
             }
         }

@@ -248,6 +248,18 @@ mod tests {
     fn test_spawn_engine_error_includes_status_stdout_and_stderr() {
         use std::os::unix::fs::PermissionsExt;
 
+        struct Cleanup {
+            tmp: std::path::PathBuf,
+            old_path: String,
+        }
+
+        impl Drop for Cleanup {
+            fn drop(&mut self) {
+                std::env::set_var("PATH", &self.old_path);
+                let _ = std::fs::remove_dir_all(&self.tmp);
+            }
+        }
+
         let _guard = test_lock().lock().expect("lock");
         let tmp = make_temp_dir();
         let fake = tmp.join("codex");
@@ -263,10 +275,13 @@ mod tests {
         std::fs::set_permissions(&fake, perms).expect("chmod");
 
         let old_path = std::env::var("PATH").unwrap_or_default();
+        let _cleanup = Cleanup {
+            tmp: tmp.clone(),
+            old_path: old_path.clone(),
+        };
         std::env::set_var("PATH", format!("{}:{}", tmp.display(), old_path));
 
         let err = spawn_engine(RunEngine::Codex, "demo task", &tmp).expect_err("should fail");
-        std::env::set_var("PATH", old_path);
 
         let message = format!("{:#}", err);
         assert!(
@@ -283,7 +298,5 @@ mod tests {
                 || message.contains("code"),
             "error should include process status: {message}"
         );
-
-        let _ = std::fs::remove_dir_all(tmp);
     }
 }

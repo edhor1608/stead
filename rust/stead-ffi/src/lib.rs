@@ -327,7 +327,12 @@ mod tests {
         let db = stead_core::storage::sqlite::open_default(&project).expect("open sqlite");
         let proof = "ffi-verify-proof.txt";
 
-        let mut contract = Contract::new("test task", format!("printf ok > {}", proof));
+        let verify_cmd = if cfg!(target_os = "windows") {
+            format!("echo ok > {}", proof)
+        } else {
+            format!("printf ok > {}", proof)
+        };
+        let mut contract = Contract::new("test task", verify_cmd);
         contract.project_path = cwd.clone();
         let id = contract.id.clone();
         db.save_contract(&contract).expect("save contract");
