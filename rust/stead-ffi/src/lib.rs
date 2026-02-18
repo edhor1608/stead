@@ -248,6 +248,7 @@ pub fn verify_contract(id: String, cwd: String) -> Result<FfiContract, FfiError>
 
     let output = Command::new(shell)
         .args([flag, &contract.verification])
+        .current_dir(&cwd)
         .output()
         .map_err(|e| FfiError::Storage {
             message: format!("Failed to run verification: {}", e),
@@ -297,4 +298,49 @@ pub fn list_sessions(
 
     sessions.truncate(limit as usize);
     sessions.into_iter().map(FfiSessionSummary::from).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+    use stead_core::schema::Contract;
+
+    fn make_temp_project_dir() -> PathBuf {
+        let unique = format!(
+            "stead-ffi-test-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system time before epoch")
+                .as_nanos()
+        );
+        let dir = std::env::temp_dir().join(unique);
+        std::fs::create_dir_all(&dir).expect("failed to create temp project");
+        dir
+    }
+
+    #[test]
+    fn verify_contract_runs_in_given_cwd() {
+        let project = make_temp_project_dir();
+        let cwd = project.to_string_lossy().to_string();
+        let db = stead_core::storage::sqlite::open_default(&project).expect("open sqlite");
+        let proof = "ffi-verify-proof.txt";
+
+        let mut contract = Contract::new("test task", format!("printf ok > {}", proof));
+        contract.project_path = cwd.clone();
+        let id = contract.id.clone();
+        db.save_contract(&contract).expect("save contract");
+
+        let _ = verify_contract(id, cwd).expect("verify contract");
+
+        assert!(
+            project.join(proof).exists(),
+            "verification command did not run from provided cwd"
+        );
+
+        let stray = std::env::current_dir().expect("current dir").join(proof);
+        let _ = std::fs::remove_file(stray);
+        let _ = std::fs::remove_dir_all(project);
+    }
 }

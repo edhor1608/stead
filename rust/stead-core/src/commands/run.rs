@@ -137,8 +137,19 @@ fn spawn_engine(engine: RunEngine, task: &str, cwd: &Path) -> Result<()> {
         .with_context(|| format!("Failed to execute engine: {:?}", engine))?;
 
     if !output.status.success() {
+        let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);
-        anyhow::bail!("Engine exited with error: {}", stderr);
+        let combined = [stdout.trim(), stderr.trim()]
+            .iter()
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string())
+            .collect::<Vec<_>>()
+            .join("\n");
+        if combined.is_empty() {
+            anyhow::bail!("Engine exited with status {}", output.status);
+        } else {
+            anyhow::bail!("Engine exited with status {}: {}", output.status, combined);
+        }
     }
 
     Ok(())
@@ -179,6 +190,28 @@ fn run_verification(cmd: &str) -> Result<(bool, Option<String>)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Mutex, OnceLock};
+
+    #[cfg(unix)]
+    fn test_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    #[cfg(unix)]
+    fn make_temp_dir() -> std::path::PathBuf {
+        let unique = format!(
+            "stead-run-test-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system time before epoch")
+                .as_nanos()
+        );
+        let dir = std::env::temp_dir().join(unique);
+        std::fs::create_dir_all(&dir).expect("create temp dir");
+        dir
+    }
 
     #[test]
     fn test_verification_pass() {
@@ -208,5 +241,49 @@ mod tests {
         let (passed, output) = run_verification(cmd).unwrap();
         assert!(passed);
         assert!(output.unwrap().contains("error"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_spawn_engine_error_includes_status_stdout_and_stderr() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let _guard = test_lock().lock().expect("lock");
+        let tmp = make_temp_dir();
+        let fake = tmp.join("codex");
+
+        std::fs::write(
+            &fake,
+            "#!/bin/sh\necho stdout-msg\necho stderr-msg 1>&2\nexit 7\n",
+        )
+        .expect("write fake codex");
+
+        let mut perms = std::fs::metadata(&fake).expect("metadata").permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&fake, perms).expect("chmod");
+
+        let old_path = std::env::var("PATH").unwrap_or_default();
+        std::env::set_var("PATH", format!("{}:{}", tmp.display(), old_path));
+
+        let err = spawn_engine(RunEngine::Codex, "demo task", &tmp).expect_err("should fail");
+        std::env::set_var("PATH", old_path);
+
+        let message = format!("{:#}", err);
+        assert!(
+            message.contains("stdout-msg"),
+            "error should include stdout: {message}"
+        );
+        assert!(
+            message.contains("stderr-msg"),
+            "error should include stderr: {message}"
+        );
+        assert!(
+            message.contains("exit status")
+                || message.contains("status")
+                || message.contains("code"),
+            "error should include process status: {message}"
+        );
+
+        let _ = std::fs::remove_dir_all(tmp);
     }
 }
