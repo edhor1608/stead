@@ -6,10 +6,10 @@ struct ContentView: View {
     var body: some View {
         NavigationSplitView {
             List(selection: $store.selectedTab) {
-                Label("Contracts", systemImage: "doc.text")
-                    .tag(SteadStore.Tab.contracts)
-                Label("Sessions", systemImage: "bubble.left.and.bubble.right")
-                    .tag(SteadStore.Tab.sessions)
+                ForEach(SteadStore.Tab.allCases, id: \.self) { tab in
+                    Label(tab.label, systemImage: tab.icon)
+                        .tag(tab)
+                }
             }
             .listStyle(.sidebar)
             .frame(minWidth: 160)
@@ -23,7 +23,7 @@ struct ContentView: View {
         }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Button(action: { store.refresh() }) {
+                Button(action: { _ = store.handleKeyboardShortcut(.refresh) }) {
                     Label("Refresh", systemImage: "arrow.clockwise")
                 }
                 .keyboardShortcut("r", modifiers: .command)

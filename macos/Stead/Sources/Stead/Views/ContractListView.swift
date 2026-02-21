@@ -2,7 +2,7 @@ import SwiftUI
 
 struct ContractListView: View {
     @ObservedObject var store: SteadStore
-    @State private var selectedContract: ContractItem?
+    static let emptyStateHint = "Run `stead contract create --id <id>` to create contracts"
 
     var body: some View {
         HSplitView {
@@ -23,15 +23,15 @@ struct ContractListView: View {
                     Text("No Contracts")
                         .font(.title3)
                         .foregroundStyle(.secondary)
-                    Text("Run `stead run` to create contracts")
+                    Text(Self.emptyStateHint)
                         .font(.caption)
                         .foregroundStyle(.tertiary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 List(selection: Binding(
-                    get: { selectedContract?.id },
-                    set: { id in selectedContract = store.contracts.first { $0.id == id } }
+                    get: { store.focusedContractId },
+                    set: { id in store.focusedContractId = id }
                 )) {
                     ForEach(store.contractsByPriority, id: \.0) { label, items in
                         Section(label) {
@@ -49,7 +49,9 @@ struct ContractListView: View {
 
     private var contractDetail: some View {
         Group {
-            if let contract = selectedContract {
+            if let selectedId = store.focusedContractId,
+               let contract = store.contracts.first(where: { $0.id == selectedId })
+            {
                 ContractDetailView(contract: contract)
             } else {
                 Text("Select a contract")

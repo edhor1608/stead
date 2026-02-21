@@ -1,5 +1,16 @@
 # Decision: Agent SDK Language
 
+> Status: Superseded (transport sections) on 2026-02-13.
+>
+> Superseded by:
+> - `docs/plans/planning-baseline-2026-02-13.md`
+> - `docs/plans/canonical-decisions-2026-02-11.md`
+> - `docs/plans/phase2-revised.md`
+>
+> Reason:
+> - This document is still useful for the "CLI is the SDK for agents" rationale.
+> - Its HTTP API + daemon transport assumptions are not the current MVP baseline.
+
 ## Context
 
 stead needs an interface for AI agents to interact with the Contract Engine:

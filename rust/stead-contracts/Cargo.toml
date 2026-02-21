@@ -1,0 +1,16 @@
+[package]
+name = "stead-contracts"
+version = "0.1.0"
+edition = "2024"
+description = "Reusable contract engine with a 10-state lifecycle for agent execution supervision."
+license = "MIT"
+repository = "https://github.com/edhor1608/stead"
+readme = "README.md"
+
+[dependencies]
+rusqlite = { version = "0.31", features = ["bundled"] }
+serde_json = "1"
+
+[dev-dependencies]
+proptest = "1"
+tempfile = "3"

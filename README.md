@@ -2,9 +2,7 @@
 
 An operating environment for agent-driven development.
 
-Modern dev workflows involve multiple AI agents running across projects simultaneously. Your tools organize by app (terminal tabs, browser windows, IDE panels) — not by project. When an agent finishes, you hear a *ding* but can't find which terminal, which browser tab, which port. Context is fragmented. Attention is interrupted without restoration.
-
-stead solves this by providing **contracts** (verified units of work), **session browsing** (unified view across AI CLIs), and a **control room** (macOS app that surfaces what needs your attention).
+stead combines a contract lifecycle engine, session normalization across coding CLIs, and a macOS Control Room so supervision stays project-centered instead of tool-centered.
 
 ## Quick Start
 
@@ -15,118 +13,107 @@ cd rust && cargo build --release
 # Install the binary
 cp target/release/stead ~/.local/bin/
 
-# Run a contract with verification
-stead run "fix the login bug" --verify "cargo test --lib auth"
+# Status-first entry (default)
+stead
+stead --json
 
-# List contracts
-stead list
-
-# Browse AI sessions across Claude Code, Codex CLI, OpenCode
+# Grouped command families
+stead contract list
 stead session list
+stead resource endpoint list
+stead attention status
+stead context generate --task "Restore context"
+stead module list
+stead daemon health
 ```
 
-## Concepts
+## Core Concepts
 
 ### Contracts
 
-A contract is a unit of work with a verification command. Unlike tasks (human-readable descriptions), contracts are executable: they have inputs, verification criteria, and state transitions.
+Contracts are machine-valid work units with explicit lifecycle transitions.
 
-```bash
-stead create "add rate limiting" --verify "cargo test rate_limit"
-stead claim abc1 --owner agent-1
-stead verify abc1
-stead cancel abc1
-```
+10-state lifecycle:
 
-**10-state lifecycle:**
+`Pending -> Ready -> Claimed -> Executing -> Verifying -> Completed`
 
-```
-Pending → Ready → Claimed → Executing → Verifying → Completed
-                                      ↘ Failed → (retry) → Executing
-                               Cancelled ← (any non-terminal)
-                               RollingBack → RolledBack
-```
+Failure/rollback branches:
 
-### Sessions
+`Failed`, `RollingBack`, `RolledBack`, `Cancelled`
 
-stead reads session data from AI coding CLIs installed on your machine:
+### Sessions (USF)
 
-| CLI | Session Location |
-|-----|-----------------|
-| Claude Code | `~/.claude/projects/` |
-| Codex CLI | `~/.codex/sessions/` |
-| OpenCode | `~/.local/share/opencode/storage/` |
-
-Sessions are normalized into a Universal Session Format (USF) for unified browsing.
-
-```bash
-stead session list                          # all sessions
-stead session list --cli claude             # filter by CLI
-stead session list --project stead          # filter by project
-stead session show <session-id>             # full timeline
-```
+stead parses Claude, Codex, and OpenCode session artifacts into a shared Universal Session Format so listing/filtering works through one contract.
 
 ### Control Room (macOS)
 
-Native SwiftUI app with menu bar presence. Surfaces contracts by attention priority:
-
-**Failed > Executing > Verifying > Claimed > Ready > Pending > Completed**
-
-Built with UniFFI bindings — the Swift app calls Rust directly, no IPC.
+The macOS app is a daemon client over UniFFI-backed Rust APIs and projects engine state into attention-oriented supervision views.
 
 ## Architecture
 
-```
+The rewrite is modular and exportable by crate:
+
+```text
 rust/
-├── stead-core/        # Library: contracts, storage, USF, commands
-├── stead-cli/         # Binary: thin clap wrapper
-└── stead-ffi/         # UniFFI bindings for Swift
-
-macos/
-└── Stead/             # SwiftUI macOS app (xcodegen)
+├── stead-contracts/     # lifecycle + event-sourced contract engine
+├── stead-resources/     # generic resource lease/conflict model
+├── stead-endpoints/     # named localhost endpoint negotiation
+├── stead-usf/           # session adapters + normalized listing contracts
+├── stead-module-sdk/    # optional modules: session proxy + context generator
+├── stead-daemon/        # versioned command/event API over core crates
+├── stead-cli/           # grouped CLI families, daemon-backed dispatch
+└── stead-ffi/           # UniFFI bridge for macOS
 ```
 
-All business logic lives in `stead-core`. The CLI and FFI are thin wrappers.
+Storage is workspace-local under `.stead/`.
 
-**Storage:** SQLite database at `.stead/stead.db` per project, with automatic migration from legacy JSONL format.
+## CLI Surface (v1)
 
-## CLI Reference
+| Family | Commands |
+| --- | --- |
+| `stead` | status overview (default) |
+| `stead contract` | `create`, `get`, `list`, `transition` |
+| `stead session` | `list`, `show`, `parse`, `endpoint` |
+| `stead resource` | `claim`, `endpoint claim`, `endpoint list`, `endpoint release` |
+| `stead attention` | `status` |
+| `stead context` | `generate` |
+| `stead module` | `list`, `enable`, `disable` |
+| `stead daemon` | `health` |
 
-| Command | Description |
-|---------|-------------|
-| `stead run <task> --verify <cmd>` | Create, execute, and verify a contract |
-| `stead create <task> --verify <cmd>` | Create a contract without executing |
-| `stead list [--status <s>]` | List contracts, optionally filtered |
-| `stead show <id>` | Show contract details |
-| `stead verify <id>` | Re-run verification |
-| `stead claim <id> --owner <name>` | Claim a contract for execution |
-| `stead cancel <id>` | Cancel a non-terminal contract |
-| `stead session list` | Browse sessions across AI CLIs |
-| `stead session show <id>` | Show session timeline |
-
-All commands accept `--json` for machine-readable output.
+All commands support `--json` for machine consumption.
 
 ## Development
 
 ```bash
 cd rust
-
-# Build
-cargo build --workspace
-
-# Test (114 tests: 98 unit + 16 integration)
-cargo test --workspace
-
-# Lint
 cargo fmt --all --check
 cargo clippy --workspace -- -D warnings
-
-# Build macOS app
-cd ../macos && ./build.sh
+cargo test --workspace
 ```
 
-CI runs on every push to main: format check, clippy, tests, and release build.
+macOS tests:
+
+```bash
+xcodebuild -project macos/Stead/Stead.xcodeproj -scheme Stead -destination 'platform=macOS' test
+```
+
+## Documentation Authority
+
+1. `/Users/jonas/repos/stead/docs/plans/planning-baseline-2026-02-13.md`
+2. `/Users/jonas/repos/stead/docs/plans/canonical-decisions-2026-02-11.md`
+3. `/Users/jonas/repos/stead/docs/plans/docs-authority-map.md`
 
 ## License
 
 MIT
+
+<!-- status:start -->
+## Status
+- State: active
+- Summary: Define current milestone.
+- Next: Define next concrete step.
+- Updated: 2026-02-21
+- Branch: `rewrite/v1`
+- Working Tree: dirty (2 files)
+- Last Commit: 0c55ef9 (2026-02-16) rewrite+tdd: drop stead-core from active workspace surface
+<!-- status:end -->

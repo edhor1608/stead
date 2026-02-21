@@ -5,6 +5,10 @@
 
 ---
 
+> Alignment note (2026-02-11): This document is onboarding UX direction.
+> For canonical concept-level decisions, see `docs/plans/canonical-decisions-2026-02-11.md`.
+> For cross-doc precedence, see `docs/plans/docs-authority-map.md`.
+
 ## Philosophy
 
 The first 5 minutes with stead should feel like a revelation, not a tutorial. The developer already has the pain -- scattered agent sessions, port collisions, context-switching anxiety. Stead doesn't need to explain the problem. It needs to show, in under 60 seconds, that someone finally built the answer.
@@ -251,7 +255,7 @@ The empty state is intentionally calm. "No contracts need attention" is a positi
 
 **Zero configuration.** The Control Room and CLI share stead-core, which knows where to look:
 
-- Contracts: `~/.stead/contracts.jsonl` (stead's own data)
+- Contracts: `~/.stead/stead.db` (SQLite canonical runtime storage)
 - Claude Code sessions: `~/.claude/projects/` (standard Claude Code location)
 - Codex CLI sessions: `~/.codex/sessions/` (standard Codex location)
 - OpenCode sessions: `~/.local/share/opencode/storage/` (standard OpenCode location)

@@ -5,6 +5,10 @@
 
 ---
 
+> Alignment note (2026-02-11): This document is scope framing.
+> For canonical concept-level decisions, see `docs/plans/canonical-decisions-2026-02-11.md`.
+> For cross-doc precedence, see `docs/plans/docs-authority-map.md`.
+
 ## The One Thing the MVP Must Prove
 
 A developer hears the *ding*. Instead of hunting through terminal tabs, they glance at a menu bar icon, click it, see what finished, and restore full context in under 10 seconds. That's it. Everything in the MVP exists to make that moment work.
@@ -19,7 +23,7 @@ If we nail this one loop -- notification, comprehension, action -- people will t
 
 The brain. All logic lives here. CLI and Mac app are both views into it.
 
-- Contract CRUD: create, list, show, verify (current 4-state lifecycle -- Pending, Running, Passed, Failed)
+- Contract CRUD: create, list, show, verify (10-state engine lifecycle with supervision-focused projection)
 - USF read adapters: Claude Code, Codex CLI, OpenCode (already built)
 - SQLite storage (replaces JSONL -- needed for concurrent CLI + GUI access)
 - Clean public API: functions return data, callers decide how to display it
@@ -77,7 +81,7 @@ Two sounds. Two interrupt cases. Everything else is silent.
 
 | Feature | Why it's out | When it returns |
 |---------|-------------|-----------------|
-| **10-state contract lifecycle** (M6) | 4 states cover the MVP supervision loop. Ready/Claimed/Verifying/RollingBack add complexity without proving the core value. | After MVP ships and we validate the model |
+| **Strict M6 transition enforcement + full command surface** | Keep 10-state engine semantics canonical, but enforce strict transition guards and full lifecycle command ergonomics in a dedicated hardening pass. | After core supervision loop validation |
 | **Contract dependencies** (blocks/blockedBy) | Multi-agent coordination is layer 2. MVP proves single-agent supervision. | M6 |
 | **Execution daemon** | We orchestrate existing CLIs. Don't build what already works. | Maybe never -- CLIs ARE the runtimes |
 | **Session proxy** (browser isolation) | Solves port/auth collisions, but not the *ding* problem. Separate wedge. | Post-MVP, if port collisions prove to be acute pain |

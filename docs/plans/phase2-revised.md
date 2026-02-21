@@ -2,6 +2,11 @@
 
 **Created:** 2026-02-04
 **Status:** Active
+**Last Verified:** 2026-02-13
+
+> Alignment note (2026-02-11): This document is a sequencing roadmap.
+> For canonical concept-level decisions, see `docs/plans/canonical-decisions-2026-02-11.md`.
+> For cross-doc precedence, see `docs/plans/docs-authority-map.md`.
 
 ## Context
 
@@ -9,7 +14,7 @@
 - Rust CLI v2 with run/list/show/verify commands
 - USF adapters for Claude Code, Codex CLI, OpenCode
 - `stead session list` and `stead session show` commands
-- 88 tests passing (72 lib + 16 integration)
+- 114 tests passing (98 unit + 16 integration)
 
 **Architecture Decision (2026-02-04):**
 - **Monolith** — no HTTP API, no separate server
@@ -26,7 +31,7 @@ See: `decisions-log.md` for full rationale.
 │   macOS App     │  (SwiftUI - native Mac UI)
 │  Control Room   │
 └────────┬────────┘
-         │ FFI (swift-bridge)
+         │ FFI (UniFFI)
          │
 ┌────────▼────────┐
 │   stead-core    │  (Rust library - the brain)
@@ -91,7 +96,7 @@ stead/
 
 ---
 
-### M2: Restructure to Library + CLI (Foundation)
+### M2: Restructure to Library + CLI (Foundation) ✅ COMPLETE
 
 Split current monolithic CLI into library + binary. This enables FFI later.
 
@@ -128,9 +133,13 @@ stead session list  # Still works
 
 ---
 
-### M3: SQLite Storage
+### M3: SQLite Storage ⚠️ MOSTLY COMPLETE
 
 Replace JSONL with SQLite for concurrent access.
+
+Current note:
+- CLI and core command paths use SQLite as default.
+- Remaining alignment work is around parity in all surfaces (especially FFI/app contract reads).
 
 | Task | Description |
 |------|-------------|
@@ -167,30 +176,29 @@ sqlite3 .stead/stead.db "SELECT * FROM contracts"
 
 ---
 
-### M4: Swift FFI Bindings
+### M4: Swift FFI Bindings ✅ COMPLETE (UniFFI)
 
 Enable Swift to call stead-core.
 
 | Task | Description |
 |------|-------------|
 | 4.1 | Add stead-ffi crate |
-| 4.2 | Set up swift-bridge |
+| 4.2 | Set up UniFFI |
 | 4.3 | Expose core functions: list_contracts, list_sessions, etc. |
 | 4.4 | Generate Swift bindings |
 | 4.5 | Test from Swift playground |
 
 **Example FFI (stead-ffi/src/lib.rs):**
 ```rust
-#[swift_bridge::bridge]
-mod ffi {
-    extern "Rust" {
-        type ContractSummary;
-        fn list_contracts() -> Vec<ContractSummary>;
-        fn get_contract(id: String) -> Option<Contract>;
+#[derive(uniffi::Record)]
+pub struct FfiContract {
+    pub id: String,
+    pub task: String,
+}
 
-        type SessionSummary;
-        fn list_sessions() -> Vec<SessionSummary>;
-    }
+#[uniffi::export]
+pub fn list_contracts(cwd: String) -> Result<Vec<FfiContract>, FfiError> {
+    // ...
 }
 ```
 
@@ -203,19 +211,19 @@ print(contracts.count)
 
 ---
 
-### M5: SwiftUI Control Room MVP
+### M5: SwiftUI Control Room MVP 🚧 IN PROGRESS
 
 Native Mac app with attention-prioritized view.
 
 | Task | Description |
 |------|-------------|
 | 5.1 | Create Xcode project |
-| 5.2 | Integrate stead-ffi as Swift package |
+| 5.2 | Integrate stead-ffi/UniFFI generated Swift bindings |
 | 5.3 | Contract list view (grouped by status) |
 | 5.4 | Session list view |
-| 5.5 | Attention priority ordering |
+| 5.5 | Attention priority ordering consistency pass |
 | 5.6 | System tray / menu bar presence |
-| 5.7 | Basic styling |
+| 5.7 | Build/script reliability and UX hardening |
 
 **Attention Priority Order:**
 1. 🔴 Needs Decision (blocked on human)
@@ -234,15 +242,15 @@ Native Mac app with attention-prioritized view.
 
 ### M6: Full Contract Lifecycle
 
-Expand from 4 states to 10 states.
+Lifecycle hardening and command-surface parity.
 
 | Task | Description |
 |------|-------------|
-| 6.1 | Expand ContractStatus enum |
-| 6.2 | Add owner, blockedBy, blocks fields |
-| 6.3 | State transition guards |
-| 6.4 | CLI: claim, unclaim, start, complete, fail commands |
-| 6.5 | Update SwiftUI views for new states |
+| 6.1 | Enforce strict transition guards consistently across all command paths |
+| 6.2 | Close command-surface gaps (`unclaim/start/complete/fail` or equivalent policy lock) |
+| 6.3 | Clarify `run` semantics when agent execution fails but verification passes |
+| 6.4 | Ensure lifecycle parity between CLI, FFI, and macOS app surfaces |
+| 6.5 | Update SwiftUI views for final lifecycle policy and attention mapping |
 
 **10 States:**
 ```rust
@@ -260,20 +268,24 @@ enum ContractStatus {
 }
 ```
 
+Current note:
+- The 10-state enum and core fields are already implemented.
+- M6 now focuses on strictness, semantics, and cross-surface consistency.
+
 ---
 
 ## Execution Order
 
 ```
-M2 (Library Split)
+M2 (Library Split) ✅
     ↓
-M3 (SQLite)
+M3 (SQLite) ⚠️
     ↓
-M4 (FFI)
+M4 (FFI) ✅
     ↓
-M5 (SwiftUI MVP)
+M5 (SwiftUI MVP) 🚧
     ↓
-M6 (Full Lifecycle)
+M6 (Lifecycle Hardening)
 ```
 
 Each milestone is independently useful. M2-M3 improve the CLI. M4-M5 add the UI. M6 adds power features.

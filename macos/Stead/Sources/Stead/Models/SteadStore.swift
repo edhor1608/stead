@@ -74,6 +74,30 @@ struct ContractItem: Identifiable {
     let blockedBy: [String]
     let blocks: [String]
 
+    init(
+        id: String,
+        task: String,
+        verification: String,
+        status: ContractStatus,
+        createdAt: String,
+        completedAt: String?,
+        output: String?,
+        owner: String?,
+        blockedBy: [String],
+        blocks: [String]
+    ) {
+        self.id = id
+        self.task = task
+        self.verification = verification
+        self.status = status
+        self.createdAt = createdAt
+        self.completedAt = completedAt
+        self.output = output
+        self.owner = owner
+        self.blockedBy = blockedBy
+        self.blocks = blocks
+    }
+
     init(ffi: FfiContract) {
         self.id = ffi.id
         self.task = ffi.task
@@ -127,6 +151,26 @@ struct SessionItem: Identifiable {
     let messageCount: UInt32
     let gitBranch: String?
 
+    init(
+        id: String,
+        cli: CliType,
+        projectPath: String,
+        title: String,
+        created: String,
+        lastModified: String,
+        messageCount: UInt32,
+        gitBranch: String?
+    ) {
+        self.id = id
+        self.cli = cli
+        self.projectPath = projectPath
+        self.title = title
+        self.created = created
+        self.lastModified = lastModified
+        self.messageCount = messageCount
+        self.gitBranch = gitBranch
+    }
+
     init(ffi: FfiSessionSummary) {
         self.id = ffi.id
         self.cli = {
@@ -153,11 +197,68 @@ class SteadStore: ObservableObject {
     @Published var contracts: [ContractItem] = []
     @Published var sessions: [SessionItem] = []
     @Published var selectedTab: Tab = .contracts
+    @Published var focusedContractId: String?
     @Published var errorMessage: String?
 
-    enum Tab {
+    enum Tab: CaseIterable {
         case contracts
         case sessions
+
+        var label: String {
+            switch self {
+            case .contracts:
+                return "Contracts"
+            case .sessions:
+                return "Sessions"
+            }
+        }
+
+        var icon: String {
+            switch self {
+            case .contracts:
+                return "doc.text"
+            case .sessions:
+                return "bubble.left.and.bubble.right"
+            }
+        }
+
+        var cliFamilyName: String {
+            switch self {
+            case .contracts:
+                return "contract"
+            case .sessions:
+                return "session"
+            }
+        }
+    }
+
+    enum MenuBarState {
+        case idle
+        case running
+        case attention
+        case decision
+    }
+
+    enum PrimaryResolutionAction: Equatable {
+        case none
+        case resolveDecision(contractId: String)
+        case resolveAnomaly(contractId: String)
+    }
+
+    enum Event {
+        case contractSnapshot([ContractItem])
+        case contractUpsert(ContractItem)
+        case contractRemoved(id: String)
+        case sessionSnapshot([SessionItem])
+        case sessionUpsert(SessionItem)
+        case sessionRemoved(id: String)
+    }
+
+    enum KeyboardShortcut {
+        case showContracts
+        case showSessions
+        case resolvePrimary
+        case refresh
     }
 
     func refresh() {
@@ -169,7 +270,7 @@ class SteadStore: ObservableObject {
         let cwd = FileManager.default.currentDirectoryPath
         do {
             let ffiContracts = try listContracts(cwd: cwd)
-            contracts = ffiContracts.map { ContractItem(ffi: $0) }
+            apply(.contractSnapshot(ffiContracts.map { ContractItem(ffi: $0) }))
             errorMessage = nil
         } catch {
             contracts = []
@@ -179,12 +280,71 @@ class SteadStore: ObservableObject {
 
     func loadSessions() {
         let ffiSessions = listSessions(cliFilter: nil, project: nil, limit: 50)
-        sessions = ffiSessions.map { SessionItem(ffi: $0) }
+        apply(.sessionSnapshot(ffiSessions.map { SessionItem(ffi: $0) }))
+    }
+
+    func apply(_ event: Event) {
+        switch event {
+        case let .contractSnapshot(items):
+            contracts = items.sorted(by: Self.contractSort)
+            if let focused = focusedContractId,
+               contracts.contains(where: { $0.id == focused }) == false
+            {
+                focusedContractId = nil
+            }
+        case let .contractUpsert(item):
+            upsertContract(item)
+        case let .contractRemoved(id):
+            contracts.removeAll { $0.id == id }
+            if focusedContractId == id {
+                focusedContractId = nil
+            }
+        case let .sessionSnapshot(items):
+            sessions = items.sorted(by: Self.sessionSort)
+        case let .sessionUpsert(item):
+            upsertSession(item)
+        case let .sessionRemoved(id):
+            sessions.removeAll { $0.id == id }
+        }
+    }
+
+    private func upsertContract(_ item: ContractItem) {
+        if let index = contracts.firstIndex(where: { $0.id == item.id }) {
+            contracts[index] = item
+        } else {
+            contracts.append(item)
+        }
+        contracts.sort(by: Self.contractSort)
+    }
+
+    private func upsertSession(_ item: SessionItem) {
+        if let index = sessions.firstIndex(where: { $0.id == item.id }) {
+            sessions[index] = item
+        } else {
+            sessions.append(item)
+        }
+        sessions.sort(by: Self.sessionSort)
+    }
+
+    private static func contractSort(_ lhs: ContractItem, _ rhs: ContractItem) -> Bool {
+        let lp = lhs.status.attentionPriority
+        let rp = rhs.status.attentionPriority
+        if lp != rp {
+            return lp < rp
+        }
+        return lhs.id < rhs.id
+    }
+
+    private static func sessionSort(_ lhs: SessionItem, _ rhs: SessionItem) -> Bool {
+        if lhs.lastModified != rhs.lastModified {
+            return lhs.lastModified > rhs.lastModified
+        }
+        return lhs.id < rhs.id
     }
 
     /// Contracts grouped by attention priority
     var contractsByPriority: [(String, [ContractItem])] {
-        let sorted = contracts.sorted { $0.status.attentionPriority < $1.status.attentionPriority }
+        let sorted = contracts.sorted(by: Self.contractSort)
         let grouped = Dictionary(grouping: sorted) { $0.status }
         return ContractStatus.allCases
             .sorted { $0.attentionPriority < $1.attentionPriority }
@@ -192,6 +352,78 @@ class SteadStore: ObservableObject {
                 guard let items = grouped[status], !items.isEmpty else { return nil }
                 return (status.rawValue, items)
             }
+    }
+
+    var menuBarState: MenuBarState {
+        if contracts.contains(where: { $0.status == .verifying }) {
+            return .decision
+        }
+        if contracts.contains(where: {
+            $0.status == .failed || $0.status == .rollingBack || $0.status == .rolledBack
+        }) {
+            return .attention
+        }
+        if contracts.contains(where: {
+            $0.status == .pending
+                || $0.status == .ready
+                || $0.status == .claimed
+                || $0.status == .executing
+        }) {
+            return .running
+        }
+        return .idle
+    }
+
+    var primaryResolutionAction: PrimaryResolutionAction {
+        if let decision = contracts
+            .sorted(by: Self.contractSort)
+            .first(where: { $0.status == .verifying })
+        {
+            return .resolveDecision(contractId: decision.id)
+        }
+
+        if let anomaly = contracts
+            .sorted(by: Self.contractSort)
+            .first(where: {
+                $0.status == .failed || $0.status == .rollingBack || $0.status == .rolledBack
+            })
+        {
+            return .resolveAnomaly(contractId: anomaly.id)
+        }
+
+        return .none
+    }
+
+    @discardableResult
+    func performPrimaryResolutionAction() -> Bool {
+        let contractId: String
+        switch primaryResolutionAction {
+        case .none:
+            return false
+        case let .resolveDecision(id), let .resolveAnomaly(id):
+            contractId = id
+        }
+
+        selectedTab = .contracts
+        focusedContractId = contractId
+        return true
+    }
+
+    @discardableResult
+    func handleKeyboardShortcut(_ shortcut: KeyboardShortcut) -> Bool {
+        switch shortcut {
+        case .showContracts:
+            selectedTab = .contracts
+            return true
+        case .showSessions:
+            selectedTab = .sessions
+            return true
+        case .resolvePrimary:
+            return performPrimaryResolutionAction()
+        case .refresh:
+            refresh()
+            return true
+        }
     }
 
     /// Sessions grouped by CLI type

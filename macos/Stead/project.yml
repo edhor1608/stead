@@ -20,6 +20,7 @@ targets:
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: 1
         SWIFT_VERSION: "5.9"
+        SWIFT_ENABLE_EXPLICIT_MODULES: "NO"
         MACOSX_DEPLOYMENT_TARGET: "14.0"
         INFOPLIST_FILE: Resources/Info.plist
         HEADER_SEARCH_PATHS:
@@ -49,3 +50,14 @@ targets:
       path: Resources/Stead.entitlements
       properties:
         com.apple.security.app-sandbox: false
+  SteadTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Tests/SteadTests
+    dependencies:
+      - target: Stead
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: "YES"
+        SWIFT_ENABLE_EXPLICIT_MODULES: "NO"

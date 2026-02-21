@@ -1,0 +1,11 @@
+[package]
+name = "stead-module-sdk"
+version = "0.1.0"
+edition = "2024"
+description = "Module SDK interfaces for composing reusable Stead-compatible runtime modules."
+license = "MIT"
+repository = "https://github.com/edhor1608/stead"
+readme = "README.md"
+
+[dependencies]
+stead-endpoints = { path = "../stead-endpoints" }

@@ -1,5 +1,5 @@
 [workspace]
-members = ["stead-core", "stead-cli", "stead-ffi"]
+members = ["stead-cli", "stead-ffi", "stead-module-sdk", "stead-contracts", "stead-resources", "stead-endpoints", "stead-usf", "stead-daemon", "stead-test-utils"]
 resolver = "2"
 
 [profile.release]

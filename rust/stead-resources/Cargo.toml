@@ -1,0 +1,11 @@
+[package]
+name = "stead-resources"
+version = "0.1.0"
+edition = "2024"
+description = "Resource claim and conflict primitives for multi-agent development workflows."
+license = "MIT"
+repository = "https://github.com/edhor1608/stead"
+readme = "README.md"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }

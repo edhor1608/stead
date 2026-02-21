@@ -1,0 +1,8 @@
+{
+  "session_id": "claude-s-partial",
+  "project_path": "",
+  "updated_at": 1700001000,
+  "messages": [
+    {"role": "user", "content": "Hello"}
+  ]
+}

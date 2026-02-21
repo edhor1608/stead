@@ -64,6 +64,19 @@ struct MenuBarView: View {
             }
 
             // Actions
+            if store.primaryResolutionAction != .none {
+                Button(primaryResolutionTitle()) {
+                    if store.performPrimaryResolutionAction() {
+                        openWindow(id: "main")
+                    }
+                }
+                .buttonStyle(.borderless)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+
+                Divider()
+            }
+
             Button("Open Control Room") {
                 openWindow(id: "main")
             }
@@ -89,5 +102,16 @@ struct MenuBarView: View {
         return Image(systemName: status?.icon ?? "questionmark.circle")
             .foregroundStyle(status?.color ?? .secondary)
             .font(.caption)
+    }
+
+    private func primaryResolutionTitle() -> String {
+        switch store.primaryResolutionAction {
+        case .none:
+            return "Resolve"
+        case .resolveDecision:
+            return "Resolve Decision"
+        case .resolveAnomaly:
+            return "Resolve Anomaly"
+        }
     }
 }

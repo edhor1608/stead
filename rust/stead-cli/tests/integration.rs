@@ -1,8 +1,7 @@
-//! Integration tests for the stead CLI
-
 use assert_cmd::prelude::*;
 use predicates::prelude::*;
 use std::process::Command;
+use std::time::{Duration, Instant};
 use tempfile::TempDir;
 
 #[allow(deprecated)]
@@ -11,254 +10,774 @@ fn stead() -> Command {
 }
 
 #[test]
-fn test_help() {
+fn test_help_lists_grouped_command_families() {
     stead()
         .arg("--help")
         .assert()
         .success()
-        .stdout(predicate::str::contains("Operating environment"));
+        .stdout(predicate::str::contains("contract"))
+        .stdout(predicate::str::contains("session"))
+        .stdout(predicate::str::contains("resource"))
+        .stdout(predicate::str::contains("attention"))
+        .stdout(predicate::str::contains("context"))
+        .stdout(predicate::str::contains("module"))
+        .stdout(predicate::str::contains("daemon"));
 }
 
 #[test]
-fn test_version() {
-    stead()
-        .arg("--version")
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("0.2.0"));
+fn test_help_preserves_grouped_family_order() {
+    let output = stead().arg("--help").output().unwrap();
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let contract = stdout.find("contract").unwrap();
+    let session = stdout.find("session").unwrap();
+    let resource = stdout.find("resource").unwrap();
+    let attention = stdout.find("attention").unwrap();
+    let context = stdout.find("context").unwrap();
+    let module = stdout.find("module").unwrap();
+    let daemon = stdout.find("daemon").unwrap();
+
+    assert!(contract < session);
+    assert!(session < resource);
+    assert!(resource < attention);
+    assert!(attention < context);
+    assert!(context < module);
+    assert!(module < daemon);
 }
 
 #[test]
-fn test_list_empty() {
+fn test_default_status_json_schema_is_stable() {
     let tmp = TempDir::new().unwrap();
 
-    stead()
-        .arg("list")
-        .current_dir(tmp.path())
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("No contracts found"));
-}
-
-#[test]
-fn test_run_and_list() {
-    let tmp = TempDir::new().unwrap();
-
-    // Run a contract
-    stead()
-        .args(["run", "test task", "--verify", "echo success"])
-        .current_dir(tmp.path())
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("PASSED"));
-
-    // List should show it
-    stead()
-        .arg("list")
-        .current_dir(tmp.path())
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("test task"))
-        .stdout(predicate::str::contains("completed"));
-}
-
-#[test]
-fn test_run_failing_verification() {
-    let tmp = TempDir::new().unwrap();
-
-    stead()
-        .args(["run", "test task", "--verify", "false"])
-        .current_dir(tmp.path())
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("FAILED"));
-
-    // List should show failed status
-    stead()
-        .arg("list")
-        .current_dir(tmp.path())
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("failed"));
-}
-
-#[test]
-fn test_show_contract() {
-    let tmp = TempDir::new().unwrap();
-
-    // Run a contract first
     let output = stead()
-        .args(["run", "test task", "--verify", "echo hello", "--json"])
+        .arg("--json")
         .current_dir(tmp.path())
         .output()
         .unwrap();
 
-    // Parse the JSON to get the ID
+    assert!(output.status.success());
     let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
-    let id = json["id"].as_str().unwrap();
 
-    // Show the contract
-    stead()
-        .args(["show", id])
-        .current_dir(tmp.path())
-        .assert()
-        .success()
-        .stdout(predicate::str::contains(&format!("Contract: {}", id)))
-        .stdout(predicate::str::contains("Status: completed"));
+    assert_eq!(json["status"], "ok");
+    assert_eq!(json["daemon"], "ok");
+    assert!(json.get("attention").is_some());
+    assert!(json.get("decisions").is_some());
+    assert!(json.get("anomalies").is_some());
 }
 
 #[test]
-fn test_show_not_found() {
+fn test_daemon_health_json_schema_is_stable() {
     let tmp = TempDir::new().unwrap();
 
-    stead()
-        .args(["show", "nonexistent"])
-        .current_dir(tmp.path())
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains("Contract not found"));
-}
-
-#[test]
-fn test_verify_command() {
-    let tmp = TempDir::new().unwrap();
-
-    // Run a contract first
     let output = stead()
-        .args(["run", "test task", "--verify", "echo verified", "--json"])
+        .args(["--json", "daemon", "health"])
         .current_dir(tmp.path())
         .output()
         .unwrap();
 
+    assert!(output.status.success());
     let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
-    let id = json["id"].as_str().unwrap();
 
-    // Re-verify
-    stead()
-        .args(["verify", id])
-        .current_dir(tmp.path())
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("PASSED"));
+    assert_eq!(json["version"], "v1");
+    assert_eq!(json["data"]["status"], "ok");
 }
 
 #[test]
-fn test_list_filter_by_status() {
+fn test_contract_group_create_get_and_transition() {
     let tmp = TempDir::new().unwrap();
 
-    // Create a passing contract
     stead()
-        .args(["run", "passing task", "--verify", "true"])
+        .args([
+            "contract",
+            "create",
+            "--id",
+            "c-1",
+            "--blocked-by",
+            "dep-a",
+            "--blocked-by",
+            "dep-b",
+        ])
         .current_dir(tmp.path())
         .assert()
         .success();
 
-    // Create a failing contract
+    let get_output = stead()
+        .args(["--json", "contract", "get", "c-1"])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+
+    assert!(get_output.status.success());
+    let contract_json: serde_json::Value = serde_json::from_slice(&get_output.stdout).unwrap();
+    assert_eq!(contract_json["id"], "c-1");
+    assert_eq!(contract_json["status"], "pending");
+
     stead()
-        .args(["run", "failing task", "--verify", "false"])
+        .args(["contract", "transition", "c-1", "--to", "ready"])
         .current_dir(tmp.path())
         .assert()
         .success();
 
-    // Filter by completed - should only show passing
-    stead()
-        .args(["list", "--status", "completed"])
+    let list_output = stead()
+        .args(["--json", "contract", "list"])
         .current_dir(tmp.path())
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("passing task"))
-        .stdout(predicate::str::contains("failing task").not());
+        .output()
+        .unwrap();
 
-    // Filter by failed - should only show failing
-    stead()
-        .args(["list", "--status", "failed"])
-        .current_dir(tmp.path())
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("failing task"))
-        .stdout(predicate::str::contains("passing task").not());
+    assert!(list_output.status.success());
+    let list_json: serde_json::Value = serde_json::from_slice(&list_output.stdout).unwrap();
+    assert!(list_json
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|item| item["id"] == "c-1"));
 }
 
 #[test]
-fn test_json_output() {
+fn test_resource_group_claim_conflict_and_negotiation() {
     let tmp = TempDir::new().unwrap();
 
-    // Run with --json
-    stead()
-        .args(["run", "test task", "--verify", "echo ok", "--json"])
+    let first = stead()
+        .args([
+            "--json",
+            "resource",
+            "claim",
+            "--resource",
+            "port:3000",
+            "--owner",
+            "agent-a",
+        ])
         .current_dir(tmp.path())
-        .assert()
-        .success()
-        .stdout(predicate::str::contains(r#""task":"test task""#))
-        .stdout(predicate::str::contains(r#""status":"completed""#));
+        .output()
+        .unwrap();
+    assert!(first.status.success());
 
-    // List with --json
-    stead()
-        .args(["--json", "list"])
+    let second = stead()
+        .args([
+            "--json",
+            "resource",
+            "claim",
+            "--resource",
+            "port:3000",
+            "--owner",
+            "agent-b",
+        ])
         .current_dir(tmp.path())
-        .assert()
-        .success()
-        .stdout(predicate::str::starts_with("["));
+        .output()
+        .unwrap();
+    assert!(second.status.success());
+
+    let json: serde_json::Value = serde_json::from_slice(&second.stdout).unwrap();
+    assert!(json.get("Negotiated").is_some());
 }
 
 #[test]
-fn test_list_invalid_status() {
+fn test_resource_endpoint_group_claim_list_release_json_schema_is_stable() {
+    let tmp = TempDir::new().unwrap();
+
+    let claim = stead()
+        .args([
+            "--json",
+            "resource",
+            "endpoint",
+            "claim",
+            "--name",
+            "api",
+            "--owner",
+            "agent-a",
+            "--port",
+            "4100",
+        ])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    assert!(claim.status.success());
+
+    let claim_json: serde_json::Value = serde_json::from_slice(&claim.stdout).unwrap();
+    assert_eq!(claim_json["type"], "claimed");
+    assert_eq!(claim_json["lease"]["name"], "api");
+    assert_eq!(claim_json["lease"]["owner"], "agent-a");
+    assert_eq!(claim_json["lease"]["port"], 4100);
+    assert_eq!(claim_json["lease"]["url"], "http://api.localhost:4100");
+
+    let listed = stead()
+        .args(["--json", "resource", "endpoint", "list"])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    assert!(listed.status.success());
+
+    let listed_json: serde_json::Value = serde_json::from_slice(&listed.stdout).unwrap();
+    let rows = listed_json.as_array().unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0]["name"], "api");
+    assert_eq!(rows[0]["url"], "http://api.localhost:4100");
+
+    let released = stead()
+        .args([
+            "--json",
+            "resource",
+            "endpoint",
+            "release",
+            "--name",
+            "api",
+            "--owner",
+            "agent-a",
+        ])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    assert!(released.status.success());
+
+    let released_json: serde_json::Value = serde_json::from_slice(&released.stdout).unwrap();
+    assert_eq!(released_json["name"], "api");
+    assert_eq!(released_json["owner"], "agent-a");
+    assert_eq!(released_json["port"], 4100);
+}
+
+#[test]
+fn test_resource_endpoint_group_returns_typed_json_errors() {
     let tmp = TempDir::new().unwrap();
 
     stead()
-        .args(["list", "--status", "invalid"])
+        .args([
+            "--json",
+            "resource",
+            "endpoint",
+            "claim",
+            "--name",
+            "api",
+            "--owner",
+            "agent-a",
+            "--port",
+            "4100",
+        ])
         .current_dir(tmp.path())
         .assert()
-        .failure()
-        .stderr(predicate::str::contains("Invalid status"));
+        .success();
+
+    let not_owner = stead()
+        .args([
+            "--json",
+            "resource",
+            "endpoint",
+            "release",
+            "--name",
+            "api",
+            "--owner",
+            "agent-b",
+        ])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    assert!(!not_owner.status.success());
+
+    let not_owner_json: serde_json::Value = serde_json::from_slice(&not_owner.stdout).unwrap();
+    assert_eq!(not_owner_json["error"]["code"], "not_owner");
+    assert!(not_owner_json["error"]["message"].is_string());
+
+    let conflict = stead()
+        .args([
+            "--json",
+            "resource",
+            "endpoint",
+            "claim",
+            "--name",
+            "api",
+            "--owner",
+            "agent-c",
+            "--port",
+            "4100",
+        ])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    assert!(!conflict.status.success());
+
+    let conflict_json: serde_json::Value = serde_json::from_slice(&conflict.stdout).unwrap();
+    assert_eq!(conflict_json["error"]["code"], "conflict");
+    assert!(conflict_json["error"]["message"].is_string());
 }
 
-// Session command tests
+#[test]
+fn test_attention_group_outputs_counts_json() {
+    let tmp = TempDir::new().unwrap();
+
+    let output = stead()
+        .args(["--json", "attention", "status"])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+
+    assert!(json.get("needs_decision").is_some());
+    assert!(json.get("anomaly").is_some());
+    assert!(json.get("completed").is_some());
+    assert!(json.get("running").is_some());
+    assert!(json.get("queued").is_some());
+}
 
 #[test]
-fn test_session_list_help() {
+fn test_context_group_generates_deterministic_output() {
+    let tmp = TempDir::new().unwrap();
+
+    let output = stead()
+        .args([
+            "--json",
+            "context",
+            "generate",
+            "--task",
+            "Fix auth",
+            "--fragment",
+            "a|First source|docs/a.md",
+            "--fragment",
+            "b|Second source|docs/b.md",
+        ])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+
+    assert!(json.get("prompt").is_some());
+    assert!(json.get("content").is_some());
+    assert!(json.get("provider").is_some());
+    assert!(json.get("citations").is_some());
+    assert!(json.get("confidence").is_some());
+}
+
+#[test]
+fn test_module_group_enable_disable_and_list() {
+    let tmp = TempDir::new().unwrap();
+
     stead()
-        .args(["session", "list", "--help"])
+        .args(["module", "disable", "session_proxy"])
+        .current_dir(tmp.path())
         .assert()
-        .success()
-        .stdout(predicate::str::contains("List sessions"))
-        .stdout(predicate::str::contains("--cli"))
-        .stdout(predicate::str::contains("--project"))
-        .stdout(predicate::str::contains("--limit"));
+        .success();
+
+    let output = stead()
+        .args(["--json", "module", "list"])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(json["session_proxy"], false);
+
+    stead()
+        .args(["module", "enable", "session_proxy"])
+        .current_dir(tmp.path())
+        .assert()
+        .success();
 }
 
 #[test]
-fn test_session_list_runs() {
-    // Session list should succeed whether or not AI CLIs are installed
-    // Output varies based on what's installed, so just verify it runs
-    stead().args(["session", "list"]).assert().success();
+fn test_session_group_parses_claude_fixture() {
+    let tmp = TempDir::new().unwrap();
+    let fixture = tmp.path().join("claude.json");
+    std::fs::write(
+        &fixture,
+        r#"{
+  "session_id":"claude-s-1",
+  "project_path":"/tmp/p",
+  "updated_at":1700000001,
+  "messages":[{"role":"user","content":"Hello"}]
+}"#,
+    )
+    .unwrap();
+
+    let output = stead()
+        .args([
+            "--json",
+            "session",
+            "parse",
+            "--cli",
+            "claude",
+            "--file",
+            fixture.to_str().unwrap(),
+        ])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(json["cli"], "Claude");
+    assert_eq!(json["id"], "claude-s-1");
 }
 
 #[test]
-fn test_session_list_json() {
-    // JSON output should return a valid JSON array
+fn test_session_group_lists_sessions_sorted_and_filtered() {
+    let tmp = TempDir::new().unwrap();
+    let sessions_root = tmp.path().join(".stead").join("sessions");
+    std::fs::create_dir_all(sessions_root.join("claude")).unwrap();
+    std::fs::create_dir_all(sessions_root.join("codex")).unwrap();
+    std::fs::create_dir_all(sessions_root.join("opencode")).unwrap();
+
+    std::fs::write(
+        sessions_root.join("claude").join("a.json"),
+        r#"{
+  "session_id":"claude-s-1",
+  "project_path":"/tmp/p-a",
+  "updated_at":1700000002,
+  "messages":[{"role":"user","content":"Alpha"}]
+}"#,
+    )
+    .unwrap();
+
+    std::fs::write(
+        sessions_root.join("codex").join("b.json"),
+        r#"{
+  "id":"codex-s-1",
+  "cwd":"/tmp/p-b",
+  "last_updated":1700000001,
+  "events":[{"type":"user","text":"Beta"}]
+}"#,
+    )
+    .unwrap();
+
+    std::fs::write(
+        sessions_root.join("opencode").join("c.json"),
+        r#"{
+  "meta":{"session":"opencode-s-1","project":"/tmp/p-c","updated":1700000003},
+  "transcript":[{"speaker":"user","message":"Gamma"}]
+}"#,
+    )
+    .unwrap();
+
+    let output = stead()
+        .args(["--json", "session", "list"])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    let rows = json.as_array().unwrap();
+    assert_eq!(rows.len(), 3);
+    assert_eq!(rows[0]["id"], "opencode-s-1");
+    assert_eq!(rows[1]["id"], "claude-s-1");
+    assert_eq!(rows[2]["id"], "codex-s-1");
+
+    let filtered_cli = stead()
+        .args(["--json", "session", "list", "--cli", "claude"])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    assert!(filtered_cli.status.success());
+    let filtered_cli_json: serde_json::Value = serde_json::from_slice(&filtered_cli.stdout).unwrap();
+    let filtered_cli_rows = filtered_cli_json.as_array().unwrap();
+    assert_eq!(filtered_cli_rows.len(), 1);
+    assert_eq!(filtered_cli_rows[0]["id"], "claude-s-1");
+
+    let filtered_query = stead()
+        .args(["--json", "session", "list", "--query", "gamma"])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    assert!(filtered_query.status.success());
+    let filtered_query_json: serde_json::Value =
+        serde_json::from_slice(&filtered_query.stdout).unwrap();
+    let filtered_query_rows = filtered_query_json.as_array().unwrap();
+    assert_eq!(filtered_query_rows.len(), 1);
+    assert_eq!(filtered_query_rows[0]["id"], "opencode-s-1");
+}
+
+#[test]
+fn test_session_group_list_ignores_corrupt_files() {
+    let tmp = TempDir::new().unwrap();
+    let sessions_root = tmp.path().join(".stead").join("sessions");
+    std::fs::create_dir_all(sessions_root.join("claude")).unwrap();
+    std::fs::write(sessions_root.join("claude").join("bad.json"), "{not-json").unwrap();
+
+    let output = stead()
+        .args(["--json", "session", "list"])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(json.as_array().unwrap().len(), 0);
+}
+
+#[test]
+fn test_session_group_show_returns_single_session_record() {
+    let tmp = TempDir::new().unwrap();
+    let sessions_root = tmp.path().join(".stead").join("sessions");
+    std::fs::create_dir_all(sessions_root.join("claude")).unwrap();
+    std::fs::write(
+        sessions_root.join("claude").join("a.json"),
+        r#"{
+  "session_id":"claude-s-1",
+  "project_path":"/tmp/p-a",
+  "updated_at":1700000002,
+  "messages":[{"role":"user","content":"Alpha"}]
+}"#,
+    )
+    .unwrap();
+
+    let output = stead()
+        .args(["--json", "session", "show", "claude-s-1"])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(json["id"], "claude-s-1");
+    assert_eq!(json["cli"], "Claude");
+    assert_eq!(json["project_path"], "/tmp/p-a");
+}
+
+#[test]
+fn test_session_group_show_missing_returns_typed_json_error() {
+    let tmp = TempDir::new().unwrap();
+
+    let output = stead()
+        .args(["--json", "session", "show", "missing"])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(json["error"]["code"], "not_found");
+    assert!(json["error"]["message"].is_string());
+}
+
+#[test]
+fn test_session_endpoint_returns_null_when_session_proxy_module_disabled() {
+    let tmp = TempDir::new().unwrap();
+
+    stead()
+        .args(["module", "disable", "session_proxy"])
+        .current_dir(tmp.path())
+        .assert()
+        .success();
+
+    let output = stead()
+        .args([
+            "--json",
+            "session",
+            "endpoint",
+            "--project",
+            "/workspace/project-alpha",
+            "--owner",
+            "agent-a",
+        ])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert!(json.is_null());
+}
+
+#[test]
+fn test_session_endpoint_is_deterministic_per_project_and_negotiates_across_projects() {
+    let tmp = TempDir::new().unwrap();
+
+    let alpha_first = stead()
+        .args([
+            "--json",
+            "session",
+            "endpoint",
+            "--project",
+            "/workspace/project-alpha",
+            "--owner",
+            "agent-a",
+        ])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    assert!(alpha_first.status.success());
+
+    let alpha_json: serde_json::Value = serde_json::from_slice(&alpha_first.stdout).unwrap();
+    assert!(alpha_json.get("lease").is_some());
+
+    let alpha_second = stead()
+        .args([
+            "--json",
+            "session",
+            "endpoint",
+            "--project",
+            "/workspace/project-alpha",
+            "--owner",
+            "agent-a",
+        ])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    assert!(alpha_second.status.success());
+
+    let alpha_second_json: serde_json::Value = serde_json::from_slice(&alpha_second.stdout).unwrap();
+    assert_eq!(
+        alpha_json["lease"]["name"],
+        alpha_second_json["lease"]["name"]
+    );
+    assert_eq!(
+        alpha_json["lease"]["port"],
+        alpha_second_json["lease"]["port"]
+    );
+
+    let beta = stead()
+        .args([
+            "--json",
+            "session",
+            "endpoint",
+            "--project",
+            "/workspace/project-beta",
+            "--owner",
+            "agent-b",
+        ])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    assert!(beta.status.success());
+
+    let beta_json: serde_json::Value = serde_json::from_slice(&beta.stdout).unwrap();
+    assert_ne!(alpha_json["lease"]["name"], beta_json["lease"]["name"]);
+    assert_ne!(alpha_json["lease"]["port"], beta_json["lease"]["port"]);
+}
+
+#[test]
+fn test_session_list_under_target_load_is_below_200ms() {
+    let tmp = TempDir::new().unwrap();
+    let sessions_root = tmp.path().join(".stead").join("sessions");
+    std::fs::create_dir_all(sessions_root.join("claude")).unwrap();
+    std::fs::create_dir_all(sessions_root.join("codex")).unwrap();
+    std::fs::create_dir_all(sessions_root.join("opencode")).unwrap();
+
+    for i in 1..=50 {
+        std::fs::write(
+            sessions_root.join("claude").join(format!("{i}.json")),
+            format!(
+                r#"{{
+  "session_id":"claude-{i}",
+  "project_path":"/tmp/p-{i}",
+  "updated_at":1700000{i},
+  "messages":[{{"role":"user","content":"Alpha {i}"}}]
+}}"#
+            ),
+        )
+        .unwrap();
+
+        std::fs::write(
+            sessions_root.join("codex").join(format!("{i}.json")),
+            format!(
+                r#"{{
+  "id":"codex-{i}",
+  "cwd":"/tmp/p-{i}",
+  "last_updated":1701000{i},
+  "events":[{{"type":"user","text":"Beta {i}"}}]
+}}"#
+            ),
+        )
+        .unwrap();
+
+        std::fs::write(
+            sessions_root.join("opencode").join(format!("{i}.json")),
+            format!(
+                r#"{{
+  "meta":{{"session":"opencode-{i}","project":"/tmp/p-{i}","updated":1702000{i}}},
+  "transcript":[{{"speaker":"user","message":"Gamma {i}"}}]
+}}"#
+            ),
+        )
+        .unwrap();
+    }
+
     stead()
         .args(["--json", "session", "list"])
+        .current_dir(tmp.path())
         .assert()
-        .success()
-        .stdout(predicate::str::starts_with("["));
+        .success();
+
+    let start = Instant::now();
+    let output = stead()
+        .args(["--json", "session", "list"])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    let elapsed = start.elapsed();
+
+    assert!(output.status.success());
+    assert!(
+        elapsed < Duration::from_millis(200),
+        "session list took {:?}, expected < 200ms",
+        elapsed
+    );
 }
 
 #[test]
-fn test_session_show_not_found() {
-    stead()
-        .args(["session", "show", "nonexistent-session-id"])
-        .assert()
-        .success() // Command succeeds but prints error to stderr
-        .stderr(predicate::str::contains("Session not found"));
-}
+fn test_ding_to_context_restoration_is_below_10_seconds() {
+    let tmp = TempDir::new().unwrap();
 
-#[test]
-fn test_session_list_invalid_cli() {
     stead()
-        .args(["session", "list", "--cli", "unknown"])
+        .args(["contract", "create", "--id", "ding-c1"])
+        .current_dir(tmp.path())
         .assert()
-        .success() // Command succeeds but prints error to stderr
-        .stderr(predicate::str::contains("Unknown CLI"))
-        .stderr(predicate::str::contains("claude, codex, opencode"));
+        .success();
+    stead()
+        .args(["contract", "transition", "ding-c1", "--to", "claimed"])
+        .current_dir(tmp.path())
+        .assert()
+        .success();
+    stead()
+        .args(["contract", "transition", "ding-c1", "--to", "executing"])
+        .current_dir(tmp.path())
+        .assert()
+        .success();
+    stead()
+        .args(["contract", "transition", "ding-c1", "--to", "verifying"])
+        .current_dir(tmp.path())
+        .assert()
+        .success();
+    stead()
+        .args(["contract", "transition", "ding-c1", "--to", "failed"])
+        .current_dir(tmp.path())
+        .assert()
+        .success();
+
+    let start = Instant::now();
+
+    let attention_output = stead()
+        .args(["--json", "attention", "status"])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    assert!(attention_output.status.success());
+    let attention_json: serde_json::Value = serde_json::from_slice(&attention_output.stdout).unwrap();
+    assert!(attention_json["anomaly"].as_u64().unwrap_or(0) >= 1);
+
+    let context_output = stead()
+        .args([
+            "--json",
+            "context",
+            "generate",
+            "--task",
+            "Restore context for ding-c1",
+            "--fragment",
+            "contract|failed transition|stead.db",
+        ])
+        .current_dir(tmp.path())
+        .output()
+        .unwrap();
+    assert!(context_output.status.success());
+    let context_json: serde_json::Value = serde_json::from_slice(&context_output.stdout).unwrap();
+    assert!(context_json.get("content").is_some());
+
+    assert!(
+        start.elapsed() < Duration::from_secs(10),
+        "ding-to-context restoration exceeded 10s: {:?}",
+        start.elapsed()
+    );
 }

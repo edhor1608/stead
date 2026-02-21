@@ -1,5 +1,9 @@
 # Decisions Log
 
+> Note: This is a chronological historical log.
+> Some entries are intentionally superseded by newer decisions.
+> For current planning truth, start with `docs/plans/planning-baseline-2026-02-13.md`.
+
 ## 2026-02-02: Project Inception
 
 **Context:** Theo's article about parallel project cognitive overhead resonated. Jonas experiences this daily with 5+ active repos.
@@ -352,8 +356,344 @@ See: `docs/plans/universal-session-format.md`
 
 ---
 
+## 2026-02-14: Rewrite Branch (`rewrite/v1`) M0-M4 Lock
+
+**Context:** We restarted implementation on a clean modular Rust workspace with strict TDD checkpoints per slice and explicit goal to make subsystems exportable as standalone GitHub projects.
+
+**Decision:** Keep canonical concepts, but enforce them as isolated crates with hard test boundaries:
+- `stead-contracts`: 10-state lifecycle engine + typed transition errors + actor permissions + SQLite snapshot/event store.
+- `stead-daemon`: versioned command envelope, typed error contract, cursor-based event replay.
+- `stead-resources`: standalone resource claim/release registry with deterministic negotiation and escalation-only failure surfacing.
+
+**Rationale:**
+- Preserves concept truth (lifecycle, supervision projection, agent coordination) while making each subsystem reusable.
+- Maintains a strict "engine truth first, adapters second" layering for CLI/macOS/app clients.
+- Allows incremental replacement of legacy paths without blocking testable progress.
+
+**Key policy lock for resource negotiation:**
+- Port conflicts are resolved silently by assigning the **lowest available next port** (`requested+1` upward) within configured range.
+- If no port is available, emit explicit escalation event (`port_range_exhausted`) for attention surfaces.
+
+**Consequences:**
+- M0-M4 slices are implemented with failing tests first and crate/workspace green checkpoints.
+- Daemon now supports built-in resource contention handling and escalation event streaming.
+- Modular crates are now package-metadata-complete for separate publication paths.
+
+---
+
+## 2026-02-14: Rewrite Branch (`rewrite/v1`) M5 USF Adapter Contract
+
+**Context:** The rewrite requires USF as a reusable abstraction layer, decoupled from concrete CLIs while preserving conformance across Claude Code, Codex CLI, and OpenCode.
+
+**Decision:** Implement `stead-usf` as a standalone adapter + query crate with locked fixture conformance tests per CLI.
+
+**Rationale:**
+- Keeps CLI/tool specifics behind adapter boundaries.
+- Makes cross-tool control room consumption deterministic and testable.
+- Supports exporting USF as an independent open-source module.
+
+**Locked behavior:**
+- Each adapter maps its source fixture shape to a canonical `SessionRecord`.
+- Unified query contract supports deterministic sort (`updated_at desc`, `id asc`) plus CLI/text filters.
+- Corrupt/partial inputs return typed errors (`invalid_json` or `invalid_format`) instead of panics.
+
+**Consequences:**
+- `stead-usf` now ships fixture-backed tests for conformance, listing contract, and resilience.
+- The crate can be consumed independently from `stead-core` legacy USF code.
+
+---
+
+## 2026-02-14: Rewrite Branch (`rewrite/v1`) M6-M7 Optional Modules
+
+**Context:** Session proxy and context generator are optional modules but must be enabled by default and must not weaken core guarantees.
+
+**Decision:** Implement both in `stead-module-sdk` with explicit contracts and deterministic fallback behavior.
+
+**Rationale:**
+- Keeps module behavior reusable outside the main runtime.
+- Gives a stable SDK boundary for daemon/client integration later.
+- Preserves "core remains stable even when optional modules are toggled."
+
+**Locked behavior (M6):**
+- Session identities are project-scoped and unique per creation.
+- Tokens are valid only in their original project boundary.
+- Destroying an identity invalidates only that identity.
+- Module manager enables `session_proxy` and `context_generator` by default.
+- Disabling `session_proxy` gates that module only; core operations remain unaffected.
+
+**Locked behavior (M7):**
+- Context assembly is deterministic from sorted source fragments.
+- Provider contract supports primary + fallback providers.
+- Generated output includes provenance citations and confidence score.
+- When providers are unavailable/failed, deterministic local fallback is returned.
+
+**Consequences:**
+- `stead-module-sdk` now has fixture-free deterministic tests for isolation, lifecycle, toggling, provider fallback, provenance, and backend-unavailable fallback.
+- Optional-module semantics are formalized before daemon/CLI wiring.
+
+---
+
+## 2026-02-14: Rewrite Branch (`rewrite/v1`) M8-S1 Status-First CLI Entry
+
+**Context:** Canonical decision requires bare `stead` to act as supervision entry point. Existing CLI required a subcommand and defaulted to help/error.
+
+**Decision:** Add status-first default path in `stead-cli`:
+- `stead` prints a status overview.
+- `stead --json` prints machine-readable status JSON.
+- Both call daemon `Health` endpoint (daemon-backed default path).
+
+**Rationale:**
+- Aligns CLI entry behavior with control-room supervision loop.
+- Keeps subcommand workflows intact while enabling low-friction "what needs attention now?" checks.
+
+**Consequences:**
+- New integration tests lock default text/JSON behavior.
+- CLI now depends on `stead-daemon` for default status path.
+- Existing command suites remain green.
+
+---
+
+## 2026-02-15: Rewrite Branch (`rewrite/v1`) M8-S2 Grouped CLI Surface Cutover
+
+**Context:** The rewrite direction is no backward-facing command surface. Status-first entry (M8-S1) was in place, but top-level legacy verbs were still scaffolded.
+
+**Decision:** Replace CLI parser/dispatch with grouped command families only:
+- `contract`
+- `session`
+- `resource`
+- `attention`
+- `context`
+- `module`
+- `daemon`
+
+**Rationale:**
+- Aligns CLI shape with concept-level architecture (daemon-backed control plane + modular capabilities).
+- Removes accidental coupling to older command model.
+- Gives stable machine-facing surface per family for further iteration.
+
+**Implementation notes:**
+- Contract list + attention counts promoted into daemon API (`ListContracts`, `AttentionStatus`).
+- Resource lease state made durable across CLI invocations (`resources.json`) so negotiation semantics hold outside a long-lived process.
+- Session parse path now routes through standalone `stead-usf`.
+- Context generation path now routes through `stead-module-sdk` contracts.
+- Module enable/disable/list now managed via `.stead/modules.json`.
+
+**Consequences:**
+- New grouped CLI integration tests are canonical for command-family behavior.
+- Old top-level verbs are removed from CLI parser.
+- Full workspace fmt/tests are green after cutover.
+
+---
+
+## 2026-02-16: Parallel Track Added - Rust-Native Named Localhost Broker (`portless` Concept)
+
+**Context:** We identified `vercel-labs/portless` as strong conceptual overlap with stead's resource negotiation and session-proxy goals. We want the concept, but not an external runtime dependency, and M9 is already in progress in a parallel implementation thread.
+
+**Decision:** Add a **parallel** Rust-native implementation track for a named-localhost broker module (portless-style behavior) that is reusable as a standalone crate and integrated through existing daemon/resource/module boundaries.
+
+**Rationale:**
+- Preserves rewrite principle: from-scratch, concept-forward, no backward coupling.
+- Keeps core behavior in Rust and exportable as independent GitHub module(s).
+- Directly targets real pain: stable project URLs + deterministic port conflict handling.
+
+**Plan placement and execution rule:**
+- This is added as a new parallel track, **non-blocking for active M9 work**.
+- Integration should happen through existing seams (`stead-resources`, `stead-daemon`, `stead-module-sdk`, `stead-cli`) instead of introducing a new architecture layer.
+
+**Planned TDD slices (new track):**
+- **M11-S1:** Domain contract tests for named endpoint leases (claim/release/ownership, deterministic naming rules).
+- **M11-S2:** Negotiation tests for name+port conflicts with deterministic next-port assignment and escalation on range exhaustion.
+- **M11-S3:** Daemon API tests for endpoint claim/list/release envelopes and typed errors.
+- **M11-S4:** CLI tests for endpoint workflows and stable JSON output.
+- **M11-S5:** Session-proxy integration tests validating project-bound stable URL mapping and module on/off behavior.
+
+**Consequences:**
+- `portless` concept is now explicitly on the roadmap without changing current M9 critical path.
+- Future implementation must follow existing strict TDD checkpoint protocol per slice.
+- Detailed execution plan lives in `docs/plans/rewrite-parallel-track-m11-named-localhost.md`.
+
+---
+
 ## Open Decisions
 
 ### Naming
 - "stead" as project name — keep it?
 - What does stead stand for? (or is it just a word?)
+
+---
+
+## 2026-02-16: Rewrite Branch (`rewrite/v1`) Session Surface Parity + M10 SLO Test Gates
+
+**Context:** The grouped CLI rewrite still lacked `session list`, which blocked CLI/UI parity expectations and the M10 session-list latency gate.
+
+**Decision:**
+- Add `stead session list` with:
+  - workspace-local discovery from `.stead/sessions/{claude,codex,opencode}`
+  - deterministic recency ordering via USF query contract
+  - `--cli` and `--query` filters
+  - corrupt/partial file tolerance (skip invalid files, keep command successful)
+- Add explicit SLO tests:
+  - `session list` under target load (<200ms)
+  - state propagation latency gate (<5s)
+  - ding-to-context restoration scenario (<10s)
+  - concurrent client soak stability gate
+
+**Rationale:**
+- Restores a key canonical session workflow without re-introducing legacy surface coupling.
+- Locks SLO requirements as executable tests instead of aspirational docs.
+
+**Consequences:**
+- CLI now has both `session parse` and `session list`.
+- M10 gates are represented in test suites and run in normal workspace test passes.
+
+---
+
+## 2026-02-16: M11 Named Localhost Broker Implemented (S1-S5)
+
+**Context:** The parallel M11 plan was defined but not yet executed. We needed executable, reusable implementation slices with strict TDD checkpoints and no legacy coupling.
+
+**Decision:** Implement M11 end-to-end using the recommended decision-gate defaults:
+- CLI namespace: `stead resource endpoint ...`
+- First URL format: `http://<name>.localhost:<port>`
+- Crate boundary: new reusable crate `stead-endpoints`
+- Persistence scope: workspace-local (`.stead/endpoints.json` through daemon storage pathing)
+
+**Implemented slices:**
+- **M11-S1/S2** (`stead-endpoints`):
+  - Domain tests for claim/release/idempotency/import-export.
+  - Deterministic negotiation tests and range-exhaustion escalation events.
+- **M11-S3** (`stead-daemon`):
+  - API requests/responses for endpoint claim/list/release.
+  - Typed errors for `not_found`, `not_owner`, `conflict`, `endpoint_range_exhausted`.
+- **M11-S4** (`stead-cli`):
+  - `resource endpoint claim|list|release` flows.
+  - Stable JSON payload tests and typed JSON error output (`error.code`, `error.message`).
+- **M11-S5** (`stead-module-sdk`):
+  - Session-proxy endpoint mapping tests for deterministic project mapping, module-disable fallback, and project scoping.
+
+**Rationale:**
+- Delivers the `portless` concept in a Rust-native, exportable module path.
+- Keeps integration via existing seams (daemon, CLI, module SDK) instead of adding architecture layers.
+- Locks behavior with tests before expanding features.
+
+**Consequences:**
+- Named localhost endpoint brokering is now a real, test-backed capability in rewrite/v1.
+- Core reusable building blocks are in standalone crates suited for separate GitHub export.
+- Remaining M11 future work is enhancement-level (proxy/no-port UX, multi-machine/global coordination), not foundation work.
+
+---
+
+## 2026-02-17: CI Quality Gates Hardened (Coverage + macOS UI Tests)
+
+**Context:** Test-strategy targets and milestone expectations required enforceable quality gates, but CI still lacked strict domain coverage thresholds and direct macOS Control Room test execution.
+
+**Decision:** Extend `.github/workflows/ci.yml` with:
+- `coverage` job using `cargo-llvm-cov`
+- hard line-coverage gates (`--fail-under-lines 90`) for:
+  - `stead-contracts`
+  - `stead-resources`
+  - `stead-usf`
+- `macos-ui-tests` job running:
+  - `xcodebuild -project macos/Stead/Stead.xcodeproj -scheme Stead -destination 'platform=macOS' test`
+- build job now depends on both `coverage` and `macos-ui-tests`
+
+**Rationale:**
+- Converts coverage and UI quality expectations into merge-blocking checks.
+- Prevents regressions in both domain correctness and SwiftUI behavior.
+
+**Consequences:**
+- PR pipeline now enforces coverage policy and macOS app test health by default.
+- Added workflow guard tests in `stead-test-utils` to lock CI contract shape.
+
+---
+
+## 2026-02-17: Session Proxy Endpoint Mapping Exposed in CLI
+
+**Context:** Endpoint mapping existed in module/domain layers, but there was no direct user-facing session command to exercise the session-proxy endpoint concept in real workflows.
+
+**Decision:** Add `stead session endpoint` command (daemon-backed):
+- `stead --json session endpoint --project <path> --owner <owner>`
+- respects module toggles from `.stead/modules.json`
+  - when `session_proxy=false`: returns JSON `null` and exits successfully
+- when enabled:
+  - derives deterministic endpoint name from project path
+  - claims endpoint via daemon `ClaimEndpoint`
+  - returns stable JSON envelope from endpoint claim result
+
+**Rationale:**
+- Turns M11/M6 concept into practical operator-facing functionality.
+- Keeps behavior aligned with module enable/disable controls.
+
+**Consequences:**
+- Real usage now exists for session->endpoint flow without leaving CLI.
+- CLI integration tests lock deterministic same-project behavior and cross-project negotiation behavior.
+
+---
+
+## 2026-02-17: Documentation Drift Guardrails for Rewrite Surface
+
+**Context:** Authority docs and README-level behavior docs drifted from shipped rewrite behavior. Public docs still described legacy top-level commands and monolith/no-daemon runtime claims.
+
+**Decision:**
+- Add executable documentation guard tests in `rust/stead-test-utils/tests/docs_consistency.rs` to lock:
+  - grouped command-family CLI claims in `/README.md`
+  - daemon-backed Rust workspace description in `/rust/README.md`
+  - daemon-backed runtime statement in `/docs/plans/planning-baseline-2026-02-13.md`
+  - canonical decision text aligned to grouped command families in `/docs/plans/canonical-decisions-2026-02-11.md`
+- Update the above docs to match current rewrite reality.
+
+**Rationale:**
+- README-level docs are authoritative for shipped behavior; drift here creates implementation confusion and planning churn.
+- Locking docs with tests keeps future slices from accidentally reintroducing stale architecture claims.
+
+**Consequences:**
+- `cargo test --workspace` now includes a docs-consistency gate for rewrite command-surface and architecture claims.
+- Planning baseline/canonical docs now align with grouped daemon-backed CLI behavior.
+
+---
+
+## 2026-02-17: FFI Boundary Cutover to Rewrite Crates
+
+**Context:** `stead-ffi` was still coupled to `stead-core`, while CLI/runtime behavior had moved to daemon-backed rewrite crates. This created cross-surface drift between macOS and CLI behavior.
+
+**Decision:**
+- Replace `stead-ffi` dependency on `stead-core` with rewrite crates:
+  - `stead-daemon`
+  - `stead-contracts`
+  - `stead-usf`
+- Route FFI contract reads through daemon API requests (`ListContracts`, `GetContract`) against workspace `.stead/stead.db`.
+- Route FFI session listing through workspace-local `.stead/sessions/{claude,codex,opencode}` with `stead-usf` adapters/query.
+- Add strict FFI tests for:
+  - daemon-backed contract read path
+  - typed not-found handling
+  - workspace-local session fixture loading
+  - manifest guard preventing `stead-core` dependency regression
+
+**Rationale:**
+- Keeps macOS read paths aligned with rewrite architecture seams.
+- Reduces backsliding risk by making boundary coupling executable in tests.
+
+**Consequences:**
+- `stead-ffi` is now rewrite-module-backed for contracts and sessions.
+- FFI no longer depends on `stead-core`.
+
+---
+
+## 2026-02-17: Remove `stead-core` from Active Rust Workspace Surface
+
+**Context:** After FFI cutover, no active rewrite crate depended on `stead-core`, but the workspace membership and README claims still advertised it as part of the current surface.
+
+**Decision:**
+- Remove `stead-core` from `rust/Cargo.toml` workspace members.
+- Remove `stead-core` entries from shipped README workspace trees.
+- Add guard tests to lock:
+  - no `stead-core` workspace membership
+  - no `stead-core` advertised in shipped READMEs
+
+**Rationale:**
+- Keeps the rewrite surface strictly module-based and forward-only.
+- Prevents accidental re-coupling through workspace defaults and doc drift.
+
+**Consequences:**
+- `cargo test --workspace` no longer executes `stead-core` legacy test suites.
+- Active shipped docs and workspace membership now reflect rewrite-only crates.

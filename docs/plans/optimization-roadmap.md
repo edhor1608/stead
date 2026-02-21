@@ -1,7 +1,11 @@
 # Optimization Roadmap: stead CLI
 
 **Date:** 2026-02-05
+**Status:** Historical research snapshot (non-authoritative)
 **Synthesized from:** Architecture Review (Linus), Performance Audit (ThePrimeagen), FFI Comparison, UX Design, Agent Orchestration Research, Test Strategy, Visionary Concepts
+
+> Note: This document contains point-in-time findings and metrics that may be stale.
+> For current planning truth, use `docs/plans/planning-baseline-2026-02-13.md`.
 
 ---
 

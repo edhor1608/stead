@@ -1,0 +1,9 @@
+{
+  "id": "codex-s-101",
+  "cwd": "/tmp/project-beta",
+  "last_updated": 1700002000,
+  "events": [
+    {"type": "user", "text": "Refactor parser"},
+    {"type": "assistant", "text": "I refactored parser."}
+  ]
+}
