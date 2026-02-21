@@ -106,3 +106,14 @@ xcodebuild -project macos/Stead/Stead.xcodeproj -scheme Stead -destination 'plat
 ## License
 
 MIT
+
+<!-- status:start -->
+## Status
+- State: active
+- Summary: Define current milestone.
+- Next: Define next concrete step.
+- Updated: 2026-02-21
+- Branch: `rewrite/v1`
+- Working Tree: dirty (2 files)
+- Last Commit: 0c55ef9 (2026-02-16) rewrite+tdd: drop stead-core from active workspace surface
+<!-- status:end -->
